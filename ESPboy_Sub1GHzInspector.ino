@@ -51,7 +51,7 @@ const char *menuMain[] PROGMEM = {
 };
 
 const char *menuRecord[] PROGMEM = {
-  "-SEND", //send selected record
+  "SEND", //send selected record
   "SHOW",
   "SET REPEAT",
   "RENAME",
@@ -495,10 +495,7 @@ gotolabel:
           while (!userInput) userInput = getUserInputLocal().toInt();
           if (userInput > DEFAULT_SIGNAL_REPEAT_NUMBER*10) userInput = DEFAULT_SIGNAL_REPEAT_NUMBER;
           recordStoredVector[selectedSignal-1].recordRepeatno = userInput;
-          printConsoleLocal(F("DONE"), TFT_MAGENTA, 1, 0);
-          while (!myESPboy.getKeys())delay(10);
-          while (myESPboy.getKeys())delay(10);
-          printConsoleLocal("", TFT_MAGENTA, 1, 0);
+          printInfoMessage(F("DONE"));
           break;
         case rename_:
           printConsoleLocal(F("Enter new name"), TFT_MAGENTA, 1, 0);
@@ -508,10 +505,7 @@ gotolabel:
           while (!userInputName.length()) userInputName = getUserInputLocal();
           userInputName = userInputName.substring(0,18);
           memcpy(&recordStoredVector[selectedSignal-1].recordName, userInputName.c_str(), userInputName.length()+1);
-          printConsoleLocal(F("DONE"), TFT_MAGENTA, 1, 0);
-          while (!myESPboy.getKeys())delay(10);
-          while (myESPboy.getKeys())delay(10);
-          printConsoleLocal("", TFT_MAGENTA, 1, 0);
+          printInfoMessage(F("DONE"));
           break;
         case delete_:
           recordStoredVector.erase(recordStoredVector.begin()+(selectedSignal-1));
@@ -533,6 +527,15 @@ gotolabel:
 }
 
 
+void printInfoMessage(String messageToPrint){
+  toggleDisplayModeLocal(1);
+  printConsoleLocal(messageToPrint, TFT_MAGENTA, 1, 0);
+  while (!myESPboy.getKeys())delay(10);
+  while (myESPboy.getKeys())delay(10);
+  printConsoleLocal("", TFT_MAGENTA, 1, 0);
+}
+
+
 void loop(){
   switch (menuInitLocal(menuMain, TFT_YELLOW, TFT_BLUE, TFT_BLUE)){
     case listen_:
@@ -545,29 +548,19 @@ void loop(){
       if(!recordStoredVector.empty())
         listofstored_f();
       else{
-        toggleDisplayModeLocal(1);
-        printConsoleLocal(F("Records not found"), TFT_MAGENTA, 1, 0);
-        while (!myESPboy.getKeys())delay(10);
-        while (myESPboy.getKeys())delay(10);
-        printConsoleLocal("", TFT_MAGENTA, 1, 0);}
+        printInfoMessage(F("Records not found"));}
       break;
     case saveall_:
       toggleDisplayModeLocal(1);
       printConsoleLocal(F("Save to EEPROM..."), TFT_MAGENTA, 1, 0);
       writeEEPROMall();
-      printConsoleLocal(F("DONE"), TFT_MAGENTA, 1, 0);
-      while (!myESPboy.getKeys())delay(10);
-      while (myESPboy.getKeys())delay(10);
-      printConsoleLocal("", TFT_MAGENTA, 1, 0);
+      printInfoMessage(F("DONE"));
       break;
     case clearall_:
       toggleDisplayModeLocal(1);
       printConsoleLocal(F("Clearing memory..."), TFT_MAGENTA, 1, 0);
       recordStoredVector.clear();
-      printConsoleLocal(F("DONE"), TFT_MAGENTA, 1, 0);
-      while (!myESPboy.getKeys())delay(10);
-      while (myESPboy.getKeys())delay(10);
-      printConsoleLocal("", TFT_MAGENTA, 1, 0);
+      printInfoMessage(F("DONE"));
       break;
     default:
       delay(150);

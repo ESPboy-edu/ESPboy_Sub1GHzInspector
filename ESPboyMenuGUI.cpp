@@ -123,7 +123,7 @@ uint16_t ESPboyMenuGUI::menuInit(const char** menuLinesF, uint16_t menuLineColor
   }
   if (keyPressed&MenuGUI_PAD_ACT && menuList.menuLine[menuList.menuCurrent][0] != '-') {
     #ifdef buttonclicks  
-      tone(SOUNDPIN,100,100);
+      tone(SOUNDPIN,200,10);
     #endif
     
     tft->drawRect(0, (menuList.menuCurrent+menuList.menuOffset)*MENU_SPACE_BETWEEN_LINES, 122, MENU_SPACE_BETWEEN_LINES, TFT_BLACK);
@@ -140,7 +140,7 @@ uint16_t ESPboyMenuGUI::menuInit(const char** menuLinesF, uint16_t menuLineColor
   }
   if (keyPressed&MenuGUI_PAD_ESC){
     #ifdef buttonclicks  
-      tone(SOUNDPIN,100,100);
+      tone(SOUNDPIN,200,10);
     #endif    
     tft->fillScreen(TFT_BLACK);
     return(0);
