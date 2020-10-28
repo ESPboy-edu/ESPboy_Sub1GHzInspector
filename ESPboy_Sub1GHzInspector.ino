@@ -43,7 +43,7 @@ const char *menuMain[] PROGMEM = {
 };
 
 const char *menuRecord[] PROGMEM = {
-  "SEND", //send selected record
+  "-SEND", //send selected record
   "SHOW",
   "SET REPEAT",
   "RENAME",
