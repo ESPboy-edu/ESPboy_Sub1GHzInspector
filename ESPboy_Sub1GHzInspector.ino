@@ -213,7 +213,8 @@ void drawDecodedSignal() {
   toPrint+=protocolratio;
   toPrint+= "} ";
   toPrint+=(mySwitch.getReceivedInverted()) ? "true" : "false";
-  printConsoleLocal(toPrint, TFT_RED, 1, 0);
+  if(!mySwitch.getReceivedProtocol())printConsoleLocal(toPrint, TFT_RED, 1, 0);
+  else printConsoleLocal(toPrint, TFT_GREEN, 1, 0);
 
   toPrint="PULSE LEN: ";
   toPrint+=(String)mySwitch.getReceivedDelay();
