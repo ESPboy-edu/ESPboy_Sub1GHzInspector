@@ -51,7 +51,7 @@ const char *menuMain[] PROGMEM = {
 };
 
 const char *menuRecord[] PROGMEM = {
-  "SEND", //send selected record
+  "-SEND", //send selected record
   "SHOW",
   "SET REPEAT",
   "RENAME",
@@ -424,7 +424,8 @@ void show_f(uint16_t selectedSignal) {
   String toPrint;
 
   selectedSignal--;
-
+  toggleDisplayModeLocal(1);
+  
   toPrint = F("Signal: ");
   toPrint+=recordStoredVector[selectedSignal].recordName;
   printConsoleLocal(toPrint, TFT_GREEN, 1, 0);
@@ -496,6 +497,7 @@ gotolabel:
           if (userInput > DEFAULT_SIGNAL_REPEAT_NUMBER*10) userInput = DEFAULT_SIGNAL_REPEAT_NUMBER;
           recordStoredVector[selectedSignal-1].recordRepeatno = userInput;
           printInfoMessage(F("DONE"));
+          userInput=0;
           break;
         case rename_:
           printConsoleLocal(F("Enter new name"), TFT_MAGENTA, 1, 0);
@@ -506,6 +508,7 @@ gotolabel:
           userInputName = userInputName.substring(0,18);
           memcpy(&recordStoredVector[selectedSignal-1].recordName, userInputName.c_str(), userInputName.length()+1);
           printInfoMessage(F("DONE"));
+          userInputName="";
           break;
         case delete_:
           recordStoredVector.erase(recordStoredVector.begin()+(selectedSignal-1));
