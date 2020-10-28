@@ -84,7 +84,6 @@ void ICACHE_RAM_ATTR ESPboyLED::ledset(uint8_t rled, uint8_t gled, uint8_t bled)
  static uint_fast32_t i, t, c, startTime, pixel, mask, t0h, t1h, ttot;
  static uint8_t cpuFreq;
  static const uint32_t pinMask = 1<<LEDPIN;
-
   
   GPIO_REG_WRITE(GPIO_OUT_W1TC_ADDRESS, pinMask);
   delay(1);

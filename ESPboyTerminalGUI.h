@@ -17,8 +17,6 @@ v2.1
 #ifndef ESPboy_TerminalGUI
 #define ESPboy_TerminalGUI
 
-#define CSTFTPIN       8
-
 #include <Adafruit_MCP23017.h>
 #include <TFT_eSPI.h>
 #include <FS.h> 
@@ -97,6 +95,7 @@ public:
   uint32_t waitKeyUnpressed();
   void printConsole(String bfrstr, uint16_t color, uint8_t ln, uint8_t noAddLine);
   String getUserInput();
+  void doScroll();
   void toggleDisplayMode(uint8_t mode);
   void drawOwnTypingLine(String typingLine, uint16_t colorLine);
 };
