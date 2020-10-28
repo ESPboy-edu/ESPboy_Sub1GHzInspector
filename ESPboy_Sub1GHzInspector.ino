@@ -28,7 +28,15 @@ String protDecode[]={
   "100 {30 71} {4 11} {9 6} false", // protocol 3
   "380 {1 6} {1 3} {3 1} false",    // protocol 4
   "500 {6 14} {1 2} {2 1} false",   // protocol 5
-  "450 {23 1} {1 2} {2 1} true"};   // protocol 6 (HT6P20B)
+  "450 {23 1} {1 2} {2 1} true",    // protocol 6 (HT6P20B)
+  "320 {36 1} {1 2} {2 1} true",    // protocol 7 (Came) Holtek HT-12E
+  "700 {36 1} {1 2} {2 1} true",    // protocol 8 (Nice) Holtek HT-12E
+  "299 {74 1} {1 2} {2 1} true",    // protocol 9 (CAME)
+  "150 {34 3} {1 3} {3 1} false", // protocol 10 (AC114)
+  "360 {13 4} {1 2} {2 1} false", // protocol 11 (DC250)
+  "270 {1 36} {1 2} {2 1} true",  // protocol 12 (REMOCON-555)
+  "150 {2 62} {1 6} {6 1} false"  // protocol 13 (HS2303-PT, i. e. used in AUKEY Remote)
+};
 
 
 char *menuList[MAX_RECORDS_TO_STORE+1];
@@ -43,7 +51,7 @@ const char *menuMain[] PROGMEM = {
 };
 
 const char *menuRecord[] PROGMEM = {
-  "-SEND", //send selected record
+  "SEND", //send selected record
   "SHOW",
   "SET REPEAT",
   "RENAME",
