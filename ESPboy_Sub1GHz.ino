@@ -187,8 +187,8 @@ void drawDecodedSignal() {
 
   toPrint="PROTOCOL: ";
   toPrint+=(String)mySwitch.getReceivedProtocol();
-  printConsoleLocal(toPrint, TFT_RED, 1, 0);
-  printConsoleLocal(protDecode[mySwitch.getReceivedProtocol()], TFT_RED, 1, 0);
+  printConsoleLocal(toPrint, TFT_YELLOW, 1, 0);
+  printConsoleLocal(protDecode[mySwitch.getReceivedProtocol()], TFT_YELLOW, 1, 0);
 
   uint16_t databitsoffset = abs((int16_t)mySwitch.getReceivedLevelInFirstTiming() - (int16_t)mySwitch.getReceivedInverted());
   uint32_t dataduration = 0;
@@ -295,7 +295,7 @@ void setup(){
   EEPROM.begin(2048);
   readEEPROM();
   
-  myESPboy.begin("ESPboy Sub1GHz module");
+  myESPboy.begin("Sub1GHz inspector");
   myLED.begin(&myESPboy.mcp);
   terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
   menuGUIobj = new ESPboyMenuGUI(&myESPboy.tft, &myESPboy.mcp);
