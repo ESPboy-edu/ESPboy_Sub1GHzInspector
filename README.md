@@ -7,11 +7,11 @@ Scan, decode, store to open garage doors, barriers, IoT sensors...
 
 You can buy this module ready-made or make it yourself.
 
-![1](pics/cc1101_5.jpg)
+![1](pics/cc1101_5.JPG)
 
-![2](pics/cc1101_6.jpg)
+![2](pics/cc1101_6.JPG)
 
-![3](pics/cc1101_7.jpg)
+![3](pics/cc1101_7.JPG)
 
 
 ## 1. Buy CC1101
