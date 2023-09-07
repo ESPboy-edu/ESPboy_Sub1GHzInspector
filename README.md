@@ -39,15 +39,16 @@ for blue CC1101 version
 - 8 >> RX, GPIO3, RX
 
 for green CC1101 version
- 
-- 3V3 >> VCC
-- GND >> GND
-- SS(15)D8 >> CSN
-- SCK(14)D5 >> SCK
-- D4(2) >> G0D0
-- RX(3) >> GD02
-- MISO(12)D6 >> MISO
-- MOSI(13)D7 >> MOSI
+
+- GND  >> GND
+- 3V3  >> VCC
+- G0D0 >> D4, GPIO 2
+- CSN  >> D8, GPIO15, SS
+- SCK  >> D5, GPIO14, SCK
+- MOSI >> D7, GPIO13, MOSI
+- MISO >> D6, GPIO12, MISO
+- GD02 >> RX, GPIO3, RX
+
 
 ## 3. Upload this firmware
 
