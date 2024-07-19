@@ -7,11 +7,11 @@ Scan, decode, store to open garage doors, barriers, IoT sensors...
 
 You can buy this module ready-made or make it yourself.
 
-![1](pics/cc1101_5.jpg)
+![1](pics/cc1101_5.JPG)
 
-![2](pics/cc1101_6.jpg)
+![2](pics/cc1101_6.JPG)
 
-![3](pics/cc1101_7.jpg)
+![3](pics/cc1101_7.JPG)
 
 
 ## 1. Buy CC1101
@@ -39,15 +39,16 @@ for blue CC1101 version
 - 8 >> RX, GPIO3, RX
 
 for green CC1101 version
- 
-- 3V3 >> VCC
-- GND >> GND
-- SS(15)D8 >> CSN
-- SCK(14)D5 >> SCK
-- D4(2) >> G0D0
-- RX(3) >> GD02
-- MISO(12)D6 >> MISO
-- MOSI(13)D7 >> MOSI
+
+- GND  >> GND
+- 3V3  >> VCC
+- G0D0 >> D4, GPIO 2
+- CSN  >> D8, GPIO15, SS
+- SCK  >> D5, GPIO14, SCK
+- MOSI >> D7, GPIO13, MOSI
+- MISO >> D6, GPIO12, MISO
+- GD02 >> RX, GPIO3, RX
+
 
 ## 3. Upload this firmware
 
