@@ -1,11 +1,20 @@
-﻿# SmartRC-CC1101-Driver-Lib_V2.5.2
+﻿# SmartRC-CC1101-Driver-Lib_V2.5.7
+
+![GitHub (Pre-)Release Date](https://img.shields.io/github/release-date-pre/LSatan/SmartRC-CC1101-Driver-Lib)
 
 Note: Find out about the laws in your country.
 Use at your own risk.
 
+Attention! in version 2.5.7 there are changes for the internal transfer functions regarding the gdo pin assignment!
+
 ---------------------------------------------
 Announcements / other
 ---------------------------------------------
+
+attention: currently i can only answer questions very belatedly.
+try to scour existing problems for a solution if possible.
+Problems that have not yet been closed are mostly already solved!
+thanks for your understanding
 
 For debug and advanced functions: https://github.com/LSatan/CC1101-Debug-Service-Tool
 
@@ -86,7 +95,8 @@ ELECHOUSE_cc1101.SetRx(MHZ);		//Sets receive on and changes the frequency.
 
 ELECHOUSE_cc1101.setRxBW(RXBW);		//Set Receive filter bandwidth		
 
-ELECHOUSE_cc1101.setGDO(GDO0, GDO2); 	//Put the Gdo pins. For libraries that address the gdo pins directly.
+ELECHOUSE_cc1101.setGDO(GDO0, GDO2); 	//Set Gdo0 (tx) and Gdo2 (rx) for serial transmission function.
+
 
 ELECHOUSE_cc1101.setSpiPin(SCK, MISO, MOSI, CSN); //custom SPI pins. Set your own Spi Pins.Or to switch between multiple cc1101. Must be set before init and before changing the cc1101.
 
@@ -94,6 +104,20 @@ ELECHOUSE_cc1101.setChannel(chnl); 	//Set Channel from 0 to 255. default = 0(bas
 
 ELECHOUSE_cc1101.setClb(fband, cal1, cal2); //Optionally enter Offset Callibration. Requirements: Sketch Calibrate_frequency.ino below [CC1101-Debug-Service-Tool](https://github.com/LSatan/CC1101-Debug-Service-Tool/tree/master/Calibrate_frequency).A SDR receiver and SDR software.
 
+New in V2.5.7
+
+ELECHOUSE_cc1101.setGDO0(GDO0);         //Sets Gdo0 for internal transfer function.
+
+ELECHOUSE_cc1101.addGDO0(GDO0, Modul);	//Adds Gdo0 for internal transfer function (multiple cc1101).
+
+ELECHOUSE_cc1101.addGDO(GDO0, GDO2, Modul);  //Adds Gdo0 (tx) and Gdo2 (rx) for serial transmission function (multiple cc1101).
+
+ELECHOUSE_cc1101.addSpiPin(SCK, MISO, MOSI, CSN, Modul);  //Adds Spi Pins for multiple cc1101.
+
+ELECHOUSE_cc1101.setModul(Modul);  //Switches between modules. from 0 to 5. So a maximum of 6.
+
+
+The new features are not final and can be changed at any time.
 
 All can also be used in a loop and are applied directly.
 
@@ -126,6 +150,55 @@ you can support me with a donation.
 https://www.paypal.me/LittleSatan666
 
 Thank You!
+
+---------------------------------------------
+Changelog: SmartRC-CC1101-Driver-Lib_V2.5.7
+---------------------------------------------
+13.07.2021
+
+Driver Library		:Fixed a bug when initalizing multiple cc1101
+
+Driver Library		:new commandos for easy handling of multiple cc1101
+
+---------------------------------------------
+Changelog: SmartRC-CC1101-Driver-Lib_V2.5.6
+---------------------------------------------
+06.04.2021
+
+Driver Library		:Add NUM_PREAMBLE. Sets the minimum number of preamble bytes to be transmitted.
+
+---------------------------------------------
+Changelog: SmartRC-CC1101-Driver-Lib_V2.5.5
+---------------------------------------------
+23.01.2021
+
+Driver Library		:Error correction for CheckRxFifo and CheckReceiveFlag (reception internal CC1101 function).
+
+---------------------------------------------
+Changelog: SmartRC-CC1101-Driver-Lib_V2.5.4
+---------------------------------------------
+23.01.2021
+
+Driver Library		:No big frequency jumps over SetRx(freq); Possible. Fixed! Big thanks to NorthernMan54 for testing!
+
+Driver Library		:double-initaliesing option from V2.5.3 has been removed. Necessary for SetRx(freq); to use.
+
+---------------------------------------------
+Changelog: SmartRC-CC1101-Driver-Lib_V2.5.3
+---------------------------------------------
+22.01.2021
+
+Driver Library		:Putting rx tx has no effect if they are already in mode. Prevents unnecessary double-initaliesing.
+
+Driver Library		:new command added: ELECHOUSE_cc1101.goSleep();   //Enter power down mode. For wakeup set RX or TX.
+
+Driver Library		:new command added: ELECHOUSE_cc1101.getMode();   //Return the Mode. Sidle = 0, TX = 1, Rx = 2.
+
+Driver Library		:new command added: ELECHOUSE_cc1101.setSidle();  //Set Rx / Tx Off.
+
+Driver Library		:new command added: ELECHOUSE_cc1101.getCC1101(); //Test Spi connection and return 1 when true.
+
+Examples		:RcSwitch Repeater_cc1101.ino has been shortened.
 
 ---------------------------------------------
 Changelog: SmartRC-CC1101-Driver-Lib_V2.5.2
