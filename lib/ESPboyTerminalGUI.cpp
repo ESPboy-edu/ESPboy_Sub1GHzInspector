@@ -6,7 +6,6 @@ v2.1
 */
 
 #include "ESPboyTerminalGUI.h"
-#define SOUNDPIN D3
 
 const uint8_t ESPboyTerminalGUI::keybOnscr[2][3][21] PROGMEM = {
  {"+1234567890abcdefghi", "jklmnopqrstuvwxyz -=", "?!@$%&*()_[]\":;.,^<E",},
@@ -14,7 +13,7 @@ const uint8_t ESPboyTerminalGUI::keybOnscr[2][3][21] PROGMEM = {
 };
 
 
-ESPboyTerminalGUI::ESPboyTerminalGUI(TFT_eSPI *tftGUI, Adafruit_MCP23017 *mcpGUI) {
+ESPboyTerminalGUI::ESPboyTerminalGUI(TFT_eSPI *tftGUI, ESPboyMCP *mcpGUI) {
    keybParam.renderLine = 0;
    keybParam.displayMode = 0;
    keybParam.shiftOn = 0;
@@ -96,8 +95,10 @@ uint8_t ESPboyTerminalGUI::keysAction() {
       }
 
       if (keyState & GUI_PAD_ESC) {
-        if (waitKeyUnpressed() > GUI_KEY_PRESSED_DELAY_TO_SEND)
+        if (waitKeyUnpressed() > GUI_KEY_PRESSED_DELAY_TO_SEND){
           keybParam.typing = "";
+          longActPress=1;
+          }
         else if (keybParam.typing.length() > 0)
           keybParam.typing.remove(keybParam.typing.length() - 1);
       }
@@ -146,10 +147,10 @@ void ESPboyTerminalGUI::toggleDisplayMode(uint8_t mode) {
 String ESPboyTerminalGUI::getUserInput() {
   String userInput;
   toggleDisplayMode(0);
-  while (1) {
+  //while (1) {
     while (!keysAction()) delay(GUI_KEYB_CALL_DELAY);
-    if (keybParam.typing != "") break;
-  }
+  //  if (keybParam.typing != "") break;
+  //}
   toggleDisplayMode(1);
   userInput = keybParam.typing;
   keybParam.typing = "";
@@ -162,7 +163,7 @@ void ESPboyTerminalGUI::doScroll(){
     tone(SOUNDPIN, 100, 10);
   #endif
   toggleDisplayMode(1);
-  while (!(keyState & GUI_PAD_ESC)){
+ // while (!(keyState & GUI_PAD_ESC)){
     delay(1);
     keyState = getKeys();
     if(keyState){
@@ -176,8 +177,9 @@ void ESPboyTerminalGUI::doScroll(){
       #endif
       delay(GUI_KEYB_CALL_DELAY);
     }
-  } 
+  //} 
 }
+
 
 void ESPboyTerminalGUI::printConsole(String bfrstr, uint16_t color, uint8_t ln, uint8_t noAddLine) {
   String toprint;
@@ -190,12 +192,15 @@ void ESPboyTerminalGUI::printConsole(String bfrstr, uint16_t color, uint8_t ln, 
     if (bfrstr.length() > ((128-4)/GUI_FONT_WIDTH)) {
       bfrstr = bfrstr.substring(0, ((128-4)/GUI_FONT_WIDTH));
       toprint = bfrstr;
+      toprint.trim();
   }
 
+  uint16_t traskStr=0;
   for (uint8_t i = 0; i <= ((bfrstr.length()-1) / ((128-4)/GUI_FONT_WIDTH)); i++) {
-    toprint = bfrstr.substring(i * (128-4)/GUI_FONT_WIDTH);
+    toprint = bfrstr.substring(traskStr);
     toprint = toprint.substring(0, (128-4)/GUI_FONT_WIDTH);
-
+    traskStr += (128-4)/GUI_FONT_WIDTH;
+    toprint.trim();
     if (!noAddLine) consoleStringsVector.push_back(consoleStringS());
     consoleStringsVector.back().consoleString = toprint;
     consoleStringsVector.back().consoleStringColor = color;
@@ -203,7 +208,7 @@ void ESPboyTerminalGUI::printConsole(String bfrstr, uint16_t color, uint8_t ln, 
   
   drawConsole(noAddLine);
   
-  if (consoleStringsVector.size() > GUI_MAX_CONSOLE_STRINGS){
+  while (consoleStringsVector.size() > GUI_MAX_CONSOLE_STRINGS){
     consoleStringsVector.erase(consoleStringsVector.begin());
     consoleStringsVector.shrink_to_fit();
   }

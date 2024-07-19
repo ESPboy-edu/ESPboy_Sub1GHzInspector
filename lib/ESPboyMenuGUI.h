@@ -14,7 +14,7 @@ v1.0
 #ifndef ESPboy_MenuGUI
 #define ESPboy_MenuGUI
 
-#include <Adafruit_MCP23017.h>
+#include "ESPboyMCP.h"
 #include <TFT_eSPI.h>
 #include <FS.h> 
 using fs::FS;
@@ -48,7 +48,7 @@ using fs::FS;
 class ESPboyMenuGUI{
 
 private:
-  Adafruit_MCP23017 *mcp; 
+  ESPboyMCP *mcp; 
   TFT_eSPI *tft;
 #ifdef U8g2
   U8g2_for_TFT_eSPI *u8f;
@@ -68,7 +68,7 @@ uint8_t getKeys();
 void menuDraw();
   
 public:
-  ESPboyMenuGUI(TFT_eSPI *tftMenuGUI, Adafruit_MCP23017 *mcpMenuGUI);
+  ESPboyMenuGUI(TFT_eSPI *tftMenuGUI, ESPboyMCP *mcpMenuGUI);
   uint16_t menuInit(const char** menuLinesF, uint16_t menuLineColorF, uint16_t menuUnselectedLineColorF, uint16_t menuSelectionColorF);
 };
 

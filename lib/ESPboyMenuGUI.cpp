@@ -10,7 +10,7 @@ v1.0
 #define SOUNDPIN D3
 
 
-ESPboyMenuGUI::ESPboyMenuGUI(TFT_eSPI *tftMenuGUI, Adafruit_MCP23017 *mcpMenuGUI) {
+ESPboyMenuGUI::ESPboyMenuGUI(TFT_eSPI *tftMenuGUI, ESPboyMCP *mcpMenuGUI) {
    tft = tftMenuGUI;
    mcp = mcpMenuGUI;
 #ifdef U8g2

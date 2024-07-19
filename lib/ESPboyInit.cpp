@@ -5,41 +5,47 @@ https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
 v1.0
 */
 
+#ifndef ESPboy_Init_cpp
+#define ESPboy_Init_cpp
+
 #include "ESPboyInit.h"
 
 ESPboyInit::ESPboyInit(){};
 
-void ESPboyInit::begin(char *appName) {
+void ESPboyInit::begin(const char *appName) {
   //Serial.begin(115200); //serial init
   WiFi.mode(WIFI_OFF); // to safe battery power
 
-//DAC init and backlit off
-  dac.begin(MCP4725address);
-  delay (100);
-  dac.setVoltage(0, false);
 
 //mcp23017 init for buttons, LED LOCK and TFT Chip Select pins
-  mcp.begin(MCP23017address);
+  mcp.begin();
   delay(100);
-  
   for (int i=0;i<8;i++){  
      mcp.pinMode(i, INPUT);
      mcp.pullUp(i, HIGH);}
 
+//DAC init and backlit off
+  mcp.writeDAC(0, false);
+
+//LED init
+  myLED.begin(&this->mcp);
+  myLED.setRGB(0,0,0);
+
 //sound init and test
   pinMode(SOUNDPIN, OUTPUT);
-  playTone(200, 100); 
-  delay(100);
-  playTone(100, 100);
-  delay(100);
-  noPlayTone();
+  //playTone(200, 100); 
+  //delay(100);
+  //playTone(100, 100);
+  //delay(100);
+  //noPlayTone();
   
 //LCD TFT init
   mcp.pinMode(CSTFTPIN, OUTPUT);
   mcp.digitalWrite(CSTFTPIN, LOW);
   tft.begin();
+  tft.setSwapBytes(true);
   delay(100);
-  tft.setRotation(0);
+  //tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
 
 //draw ESPboylogo  
@@ -49,17 +55,15 @@ void ESPboyInit::begin(char *appName) {
   tft.drawString (appName, (128-(strlen(appName)*6))/2, 102);
 
 //LCD backlit fading on
-  for (uint16_t bcklt=300; bcklt<4095; bcklt+=30){
-    dac.setVoltage(bcklt, false);
+  for (uint16_t bcklt=300; bcklt<2500; bcklt+=30){
+    mcp.writeDAC(bcklt, false);
     delay(10);}
 
-//clear TFT and backlit on high
-  dac.setVoltage(4095, true);
-  tft.fillScreen(TFT_BLACK);
+  delay(1000);
 
-//LED pin LOCK OFF
-  mcp.pinMode(LEDLOCK, OUTPUT);
-  mcp.digitalWrite(LEDLOCK, HIGH); 
+//clear TFT and backlit on high
+  mcp.writeDAC(4095, true);
+  tft.fillScreen(TFT_BLACK);
 };
 
 
@@ -69,3 +73,5 @@ void ESPboyInit::playTone(uint16_t frq) { tone(SOUNDPIN, frq); }
 void ESPboyInit::noPlayTone() { noTone(SOUNDPIN); }
 
 uint8_t ESPboyInit::getKeys() { return (~mcp.readGPIOAB() & 255); }
+
+#endif

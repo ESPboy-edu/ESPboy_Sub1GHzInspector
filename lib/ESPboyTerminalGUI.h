@@ -5,20 +5,18 @@ https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
 v2.1
 */
 
-
-
 //!!!!!!!!!!!!!!!!!
-#define U8g2  //if defined then using font 4x6, if commented using font 6x8
-#define buttonclicks //if defined - button are clicking but it takes more than 1kb RAM, if commented - no clicks and more free RAM
+//#define U8g2  //if defined then using font 4x6, if commented using font 6x8
+//#define buttonclicks //if defined - button are clicking but it takes more than 1kb RAM, if commented - no clicks and more free RAM
 //!!!!!!!!!!!!!!!!!
-
-
 
 #ifndef ESPboy_TerminalGUI
 #define ESPboy_TerminalGUI
 
-#include <Adafruit_MCP23017.h>
+#include "ESPboyMCP.h"
 #include <TFT_eSPI.h>
+
+
 #include <FS.h> 
 using fs::FS;
 
@@ -57,7 +55,7 @@ using fs::FS;
 class ESPboyTerminalGUI{
 
 private:
-  Adafruit_MCP23017 *mcp; 
+  ESPboyMCP *mcp; 
   TFT_eSPI *tft;
 #ifdef U8g2
   U8g2_for_TFT_eSPI *u8f;
@@ -83,13 +81,13 @@ private:
   const static uint8_t keybOnscr[2][3][21] PROGMEM;
 
   uint8_t keysAction();
-	void drawConsole(uint8_t onlyLastLine);
-	void drawKeyboard(uint8_t slX, uint8_t slY, uint8_t onlySelected);
-	void drawBlinkingCursor();
+  void drawConsole(uint8_t onlyLastLine);
+  void drawKeyboard(uint8_t slX, uint8_t slY, uint8_t onlySelected);
+  void drawBlinkingCursor();
   void drawTyping(uint8_t);
   
 public:
-  ESPboyTerminalGUI(TFT_eSPI *tftGUI, Adafruit_MCP23017 *mcpGUI);
+  ESPboyTerminalGUI(TFT_eSPI *tftGUI, ESPboyMCP *mcpGUI);
   void SetKeybParamTyping(String str);
   uint8_t getKeys();
   uint32_t waitKeyUnpressed();
