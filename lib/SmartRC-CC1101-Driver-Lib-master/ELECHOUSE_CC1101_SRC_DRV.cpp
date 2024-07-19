@@ -42,7 +42,7 @@ byte SS_PIN_M[max_modul];
 byte GDO0_M[max_modul];
 byte GDO2_M[max_modul];
 byte gdo_set=0;
-bool spi = 0;
+bool spi_ = 0;
 bool ccmode = 0;
 float MHz = 433.92;
 byte m4RxBw = 0;
@@ -286,7 +286,7 @@ byte ELECHOUSE_CC1101::SpiReadStatus(byte addr)
 *OUTPUT       :none
 ****************************************************************/
 void ELECHOUSE_CC1101::setSpi(void){
-  if (spi == 0){
+  if (spi_ == 0){
   #if defined __AVR_ATmega168__ || defined __AVR_ATmega328P__
   SCK_PIN = 13; MISO_PIN = 12; MOSI_PIN = 11; SS_PIN = 10;
   #elif defined __AVR_ATmega1280__ || defined __AVR_ATmega2560__
@@ -307,7 +307,7 @@ void ELECHOUSE_CC1101::setSpi(void){
 *OUTPUT       :none
 ****************************************************************/
 void ELECHOUSE_CC1101::setSpiPin(byte sck, byte miso, byte mosi, byte ss){
-  spi = 1;
+  spi_ = 1;
   SCK_PIN = sck;
   MISO_PIN = miso;
   MOSI_PIN = mosi;
@@ -320,7 +320,7 @@ void ELECHOUSE_CC1101::setSpiPin(byte sck, byte miso, byte mosi, byte ss){
 *OUTPUT       :none
 ****************************************************************/
 void ELECHOUSE_CC1101::addSpiPin(byte sck, byte miso, byte mosi, byte ss, byte modul){
-  spi = 1;
+  spi_ = 1;
   SCK_PIN_M[modul] = sck;
   MISO_PIN_M[modul] = miso;
   MOSI_PIN_M[modul] = mosi;
