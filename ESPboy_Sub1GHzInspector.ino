@@ -14,7 +14,8 @@ v1.0
 //#include "lib/ESPboyOTA2.h"
 //#include "lib/ESPboyOTA2.cpp"
 
-#include <ELECHOUSE_CC1101_SRC_DRV.h>
+#include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.h"
+#include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.cpp"
 #include <RCSwitch.h>
 #include <ESP_EEPROM.h>
 
@@ -26,6 +27,7 @@ v1.0
 #define MAX_RECORDS_TO_STORE 40
 #define DEFAULT_SIGNAL_REPEAT_NUMBER 3
 
+/*
 String protDecode[]={
   "Unknown",
   "350 {1,31} {1,3} {3,1} false",   // protocol1
@@ -42,6 +44,49 @@ String protDecode[]={
   "270 {1 36} {1 2} {2 1} true",  // protocol 12 (REMOCON-555)
   "150 {2 62} {1 6} {6 1} false"  // protocol 13 (HS2303-PT, i. e. used in AUKEY Remote)
 };
+*/
+String protDecode[]={
+"Unknown",
+"Protocol 01 Princeton, PT-2240",
+"Protocol 02 AT-Motor?",
+"Protocol 03",
+"Protocol 04",
+"Protocol 05",
+"Protocol 06 HT6P20B",
+"Protocol 07 HS2303-PT, i. e. used in AUKEY Remote",
+"Protocol 08 Came 12bit, HT12E",
+"Protocol 09 Nice_Flo 12bit",
+"Protocol 10 V2 phoenix",
+"Protocol 11 Nice_FloR-S 52bit",
+"Protocol 12 Keeloq 64/66 falseok",
+"Protocol 13 test CFM",
+"Protocol 14 test StarLine",
+"Protocol 15",
+"Protocol 16 Einhell",
+"Protocol 17 InterTechno PAR-1000",
+"Protocol 18 Intertechno ITT-1500",
+"Protocol 19 Murcury",
+"Protocol 20 AC114",
+"Protocol 21 DC250",
+"Protocol 22 Mandolyn/Lidl TR-502MSV/RC-402/RC-402DX",
+"Protocol 23 Lidl TR-502MSV/RC-402 - Flavien",
+"Protocol 24 Lidl TR-502MSV/RC701",
+"Protocol 25 NEC",
+"Protocol 26 Arlec RC210",
+"Protocol 27 Zap, FHT-7901",
+"Protocol 28", // github.com/sui77/rc-switch/pull/115
+"Protocol 29 NEXA",
+"Protocol 30 Anima",
+"Protocol 31 Mertik Maxitrol G6R-H4T1",
+"Protocol 32", //github.com/sui77/rc-switch/pull/277
+"Protocol 33 Dooya Control DC2708L",
+"Protocol 34 DIGOO SD10 ", //so as to use this protocol RCSWITCH_SEPARATION_LIMIT must be set to 2600
+"Protocol 35 Dooya 5-Channel blinds remote DC1603",
+"Protocol 36 DC2700AC", //Dooya remote DC2700AC for Dooya DT82TV curtains motor
+"Protocol 37 DEWENWILS Power Strip",
+"Protocol 38 Nexus weather, 36 bit",
+"Protocol 39 Louvolite with premable"
+};
 
 
 char *menuList[MAX_RECORDS_TO_STORE+1];
@@ -56,7 +101,7 @@ const char *menuMain[] PROGMEM = {
 };
 
 const char *menuRecord[] PROGMEM = {
-  "-SEND", //send selected record
+  "SEND", //send selected record
   "SHOW",
   "SET REPEAT",
   "RENAME",
@@ -176,11 +221,11 @@ void drawDecodedSignal() {
   printConsoleLocal(" ", TFT_MAGENTA, 1, 0);
   printConsoleLocal(F("DETECTED! DECODE:"), TFT_RED, 1, 0);
 
-  //toPrint = "RSSI/LQI: ";
-  //toPrint += (String)rssi;
-  //toPrint += "/";
-  //toPrint += (String)lqi;
-  //printConsoleLocal(toPrint, TFT_YELLOW, 1, 0);
+  toPrint = "RSSI/LQI: ";
+  toPrint += (String)rssi;
+  toPrint += "/";
+  toPrint += (String)lqi;
+  printConsoleLocal(toPrint, TFT_YELLOW, 1, 0);
   
   toPrint="DEC: ";
   toPrint+=(String)dec;
@@ -306,26 +351,43 @@ void storeSignal(){
 
 
 void setup(){
+  Serial.begin(74880);
+  
   EEPROM.begin(2048);
   readEEPROM();
   
   myESPboy.begin("Sub1GHz inspector");
 
     //Check OTA2
-/*    
+ /*   
   if (myESPboy.getKeys()&PAD_ACT || myESPboy.getKeys()&PAD_ESC) { 
      terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
      OTA2obj = new ESPboyOTA2(terminalGUIobj);
   }
 */
+
   terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
-  menuGUIobj = new ESPboyMenuGUI(&myESPboy.tft, &myESPboy.mcp);
-    
+  menuGUIobj = new ESPboyMenuGUI(&myESPboy);
+
+  myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
+  digitalWrite(CC1101chipSelectPin, LOW);
+
   ELECHOUSE_cc1101.Init();            // must be set to initialize the cc1101!
+  
   //ELECHOUSE_cc1101.setRxBW(812.50);  // Set the Receive Bandwidth in kHz. Value from 58.03 to 812.50. Default is 812.50 kHz.
   ELECHOUSE_cc1101.setMHZ(433.92); //The cc1101 can: 300-348 MHZ, 387-464MHZ and 779-928MHZ.  
   mySwitch.enableReceive(CC1101riceivePin);  // Receiver on interrupt 0 => that is pin #2
   ELECHOUSE_cc1101.SetRx();  // set Receive on
+  
+  // if return 0 then CC1101 is connected
+  if(ELECHOUSE_cc1101.getCC1101()){
+    myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);
+    digitalWrite(CC1101chipSelectPin, HIGH);
+    myESPboy.tft.setTextColor(0xF800);
+    myESPboy.tft.drawString("CC1101 module", 28 ,40);
+    myESPboy.tft.drawString("not found", 37 ,55);
+    while(1) delay(100);
+  }
 }
 
 

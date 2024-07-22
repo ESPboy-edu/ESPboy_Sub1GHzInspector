@@ -84,7 +84,7 @@ uint8_t PA_TABLE_915[10] {0x03,0x0E,0x1E,0x27,0x38,0x8E,0x84,0xCC,0xC3,0xC0,};  
 *OUTPUT       :none
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiStart(void)
-{
+{/*
   // initialize the SPI pins
   pinMode(SCK_PIN, OUTPUT);
   pinMode(MOSI_PIN, OUTPUT);
@@ -97,6 +97,7 @@ void ELECHOUSE_CC1101::SpiStart(void)
   #else
   SPI.begin();
   #endif
+  */
 }
 /****************************************************************
 *FUNCTION NAME:SpiEnd
@@ -108,7 +109,7 @@ void ELECHOUSE_CC1101::SpiEnd(void)
 {
   // disable SPI
   SPI.endTransaction();
-  SPI.end();
+  //SPI.end();
 }
 /****************************************************************
 *FUNCTION NAME: GDO_Set()

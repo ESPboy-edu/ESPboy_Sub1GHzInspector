@@ -14,8 +14,9 @@ v1.0
 #ifndef ESPboy_MenuGUI
 #define ESPboy_MenuGUI
 
-#include "ESPboyMCP.h"
-#include <TFT_eSPI.h>
+#include "ESPboyInit.h"
+#include "ESPboyInit.cpp"
+
 #include <FS.h> 
 using fs::FS;
 
@@ -48,8 +49,7 @@ using fs::FS;
 class ESPboyMenuGUI{
 
 private:
-  ESPboyMCP *mcp; 
-  TFT_eSPI *tft;
+ESPboyInit *myESPboy;
 #ifdef U8g2
   U8g2_for_TFT_eSPI *u8f;
 #endif
@@ -64,11 +64,10 @@ struct menuStruct{
   uint16_t menuCurrent;
 } menuList;
 
-uint8_t getKeys();
 void menuDraw();
   
 public:
-  ESPboyMenuGUI(TFT_eSPI *tftMenuGUI, ESPboyMCP *mcpMenuGUI);
+  ESPboyMenuGUI(ESPboyInit *myESPboyPointer);
   uint16_t menuInit(const char** menuLinesF, uint16_t menuLineColorF, uint16_t menuUnselectedLineColorF, uint16_t menuSelectionColorF);
 };
 
