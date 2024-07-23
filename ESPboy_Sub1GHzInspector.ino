@@ -2,7 +2,7 @@
 ESPboy Sub1Ghz inspector
 for www.ESPboy.com project by RomanS
 https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
-v1.0
+v1.5
 */
 
 #include "lib/ESPboyInit.h"
@@ -16,7 +16,8 @@ v1.0
 
 #include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.h"
 #include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.cpp"
-#include <RCSwitch.h>
+#include "lib/rc-switch-protocollessreceiver/RCSwitch.h"
+#include "lib/rc-switch-protocollessreceiver/RCSwitch.cpp"
 #include <ESP_EEPROM.h>
 
 #define CC1101riceivePin    3
