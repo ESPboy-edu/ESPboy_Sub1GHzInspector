@@ -28,7 +28,7 @@ v1.5
 #define MAX_RECORDS_TO_STORE 40
 #define DEFAULT_SIGNAL_REPEAT_NUMBER 3
 
-/*
+
 String protDecode[]={
   "Unknown",
   "350 {1,31} {1,3} {3,1} false",   // protocol1
@@ -45,49 +45,7 @@ String protDecode[]={
   "270 {1 36} {1 2} {2 1} true",  // protocol 12 (REMOCON-555)
   "150 {2 62} {1 6} {6 1} false"  // protocol 13 (HS2303-PT, i. e. used in AUKEY Remote)
 };
-*/
-String protDecode[]={
-"Unknown",
-"Protocol 01 Princeton, PT-2240",
-"Protocol 02 AT-Motor?",
-"Protocol 03",
-"Protocol 04",
-"Protocol 05",
-"Protocol 06 HT6P20B",
-"Protocol 07 HS2303-PT, i. e. used in AUKEY Remote",
-"Protocol 08 Came 12bit, HT12E",
-"Protocol 09 Nice_Flo 12bit",
-"Protocol 10 V2 phoenix",
-"Protocol 11 Nice_FloR-S 52bit",
-"Protocol 12 Keeloq 64/66 falseok",
-"Protocol 13 test CFM",
-"Protocol 14 test StarLine",
-"Protocol 15",
-"Protocol 16 Einhell",
-"Protocol 17 InterTechno PAR-1000",
-"Protocol 18 Intertechno ITT-1500",
-"Protocol 19 Murcury",
-"Protocol 20 AC114",
-"Protocol 21 DC250",
-"Protocol 22 Mandolyn/Lidl TR-502MSV/RC-402/RC-402DX",
-"Protocol 23 Lidl TR-502MSV/RC-402 - Flavien",
-"Protocol 24 Lidl TR-502MSV/RC701",
-"Protocol 25 NEC",
-"Protocol 26 Arlec RC210",
-"Protocol 27 Zap, FHT-7901",
-"Protocol 28", // github.com/sui77/rc-switch/pull/115
-"Protocol 29 NEXA",
-"Protocol 30 Anima",
-"Protocol 31 Mertik Maxitrol G6R-H4T1",
-"Protocol 32", //github.com/sui77/rc-switch/pull/277
-"Protocol 33 Dooya Control DC2708L",
-"Protocol 34 DIGOO SD10 ", //so as to use this protocol RCSWITCH_SEPARATION_LIMIT must be set to 2600
-"Protocol 35 Dooya 5-Channel blinds remote DC1603",
-"Protocol 36 DC2700AC", //Dooya remote DC2700AC for Dooya DT82TV curtains motor
-"Protocol 37 DEWENWILS Power Strip",
-"Protocol 38 Nexus weather, 36 bit",
-"Protocol 39 Louvolite with premable"
-};
+
 
 
 char *menuList[MAX_RECORDS_TO_STORE+1];
@@ -389,6 +347,9 @@ void setup(){
     myESPboy.tft.drawString("not found", 37 ,55);
     while(1) delay(100);
   }
+
+  myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
+  digitalWrite(CC1101chipSelectPin, LOW);
 }
 
 

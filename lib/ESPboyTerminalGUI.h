@@ -6,7 +6,7 @@ v2.1
 */
 
 //!!!!!!!!!!!!!!!!!
-//#define U8g2  //if defined then using font 4x6, if commented using font 6x8
+#define U8g2  //if defined then using font 4x6, if commented using font 6x8
 //#define buttonclicks //if defined - button are clicking but it takes more than 1kb RAM, if commented - no clicks and more free RAM
 //!!!!!!!!!!!!!!!!!
 
