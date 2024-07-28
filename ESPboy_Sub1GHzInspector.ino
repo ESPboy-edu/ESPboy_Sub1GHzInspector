@@ -310,6 +310,19 @@ void setup(){
   myLED.begin(&myESPboy.mcp);
   terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
   menuGUIobj = new ESPboyMenuGUI(&myESPboy.tft, &myESPboy.mcp);
+
+  myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
+  digitalWrite(CC1101chipSelectPin, LOW);
+
+    // if return 0 then CC1101 is connected
+  if(ELECHOUSE_cc1101.getCC1101()){
+    myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);
+    digitalWrite(CC1101chipSelectPin, HIGH);
+    myESPboy.tft.setTextColor(0xF800);
+    myESPboy.tft.drawString("CC1101 module", 28 ,40);
+    myESPboy.tft.drawString("not found", 37 ,55);
+    while(1) delay(100);
+  }
     
   ELECHOUSE_cc1101.Init();            // must be set to initialize the cc1101!
   //ELECHOUSE_cc1101.setRxBW(812.50);  // Set the Receive Bandwidth in kHz. Value from 58.03 to 812.50. Default is 812.50 kHz.

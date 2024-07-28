@@ -127,6 +127,7 @@ private:
   void Split_MDMCFG2(void);
   void Split_MDMCFG4(void);
 public:
+  bool getCC1101(void);
   void Init(void);
   byte SpiReadStatus(byte addr);
   void setSpiPin(byte sck, byte miso, byte mosi, byte ss);

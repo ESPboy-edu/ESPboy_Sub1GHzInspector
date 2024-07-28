@@ -251,6 +251,16 @@ void ELECHOUSE_CC1101::SpiReadBurstReg(byte addr, byte *buffer, byte num)
   SpiEnd();
 }
 
+
+bool ELECHOUSE_CC1101::getCC1101(void){
+setSpi();
+if (SpiReadStatus(0x31)>0){
+return 1;
+}else{
+return 0;
+}
+}
+
 /****************************************************************
 *FUNCTION NAME:SpiReadStatus
 *FUNCTION     :CC1101 read status register
