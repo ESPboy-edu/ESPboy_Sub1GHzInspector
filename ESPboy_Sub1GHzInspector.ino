@@ -2,18 +2,13 @@
 ESPboy Sub1Ghz inspector
 for www.ESPboy.com project by RomanS
 https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
-v1.5
+v1.0
 */
 
-#include "lib/ESPboyInit.h"
-#include "lib/ESPboyInit.cpp"
-#include "lib/ESPboyTerminalGUI.h"
-#include "lib/ESPboyTerminalGUI.cpp"
-#include "lib/ESPboyMenuGUI.h"
-#include "lib/ESPboyMenuGUI.cpp"
-//#include "lib/ESPboyOTA2.h"
-//#include "lib/ESPboyOTA2.cpp"
-
+#include "ESPboyInit.h"
+#include "ESPboyTerminalGUI.h"
+#include "ESPboyMenuGUI.h"
+#include "ESPboyLED.h"
 #include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.h"
 #include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.cpp"
 #include "lib/rc-switch-protocollessreceiver/RCSwitch.h"
@@ -27,7 +22,6 @@ v1.5
 
 #define MAX_RECORDS_TO_STORE 40
 #define DEFAULT_SIGNAL_REPEAT_NUMBER 3
-
 
 String protDecode[]={
   "Unknown",
@@ -45,7 +39,6 @@ String protDecode[]={
   "270 {1 36} {1 2} {2 1} true",  // protocol 12 (REMOCON-555)
   "150 {2 62} {1 6} {6 1} false"  // protocol 13 (HS2303-PT, i. e. used in AUKEY Remote)
 };
-
 
 
 char *menuList[MAX_RECORDS_TO_STORE+1];
@@ -75,8 +68,8 @@ enum {send_=1, show_, setrepeat_, rename_, delete_, cancel_};
 RCSwitch mySwitch;
 ESPboyInit myESPboy;
 ESPboyTerminalGUI *terminalGUIobj = NULL;
-//ESPboyOTA2 *OTA2obj = NULL;
 ESPboyMenuGUI *menuGUIobj = NULL;
+ESPboyLED myLED;
 
 char EEPROMmagicNo[4]={0xCC,0xCD,0xCE,0};//EEPROM marker of Sub1Ghz storage
 
@@ -180,11 +173,11 @@ void drawDecodedSignal() {
   printConsoleLocal(" ", TFT_MAGENTA, 1, 0);
   printConsoleLocal(F("DETECTED! DECODE:"), TFT_RED, 1, 0);
 
-  toPrint = "RSSI/LQI: ";
-  toPrint += (String)rssi;
-  toPrint += "/";
-  toPrint += (String)lqi;
-  printConsoleLocal(toPrint, TFT_YELLOW, 1, 0);
+  //toPrint = "RSSI/LQI: ";
+  //toPrint += (String)rssi;
+  //toPrint += "/";
+  //toPrint += (String)lqi;
+  //printConsoleLocal(toPrint, TFT_YELLOW, 1, 0);
   
   toPrint="DEC: ";
   toPrint+=(String)dec;
@@ -310,46 +303,19 @@ void storeSignal(){
 
 
 void setup(){
-  Serial.begin(74880);
-  
   EEPROM.begin(2048);
   readEEPROM();
   
   myESPboy.begin("Sub1GHz inspector");
-
-    //Check OTA2
- /*   
-  if (myESPboy.getKeys()&PAD_ACT || myESPboy.getKeys()&PAD_ESC) { 
-     terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
-     OTA2obj = new ESPboyOTA2(terminalGUIobj);
-  }
-*/
-
+  myLED.begin(&myESPboy.mcp);
   terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
-  menuGUIobj = new ESPboyMenuGUI(&myESPboy);
-
-  myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
-  digitalWrite(CC1101chipSelectPin, LOW);
-
+  menuGUIobj = new ESPboyMenuGUI(&myESPboy.tft, &myESPboy.mcp);
+    
   ELECHOUSE_cc1101.Init();            // must be set to initialize the cc1101!
-  
   //ELECHOUSE_cc1101.setRxBW(812.50);  // Set the Receive Bandwidth in kHz. Value from 58.03 to 812.50. Default is 812.50 kHz.
   ELECHOUSE_cc1101.setMHZ(433.92); //The cc1101 can: 300-348 MHZ, 387-464MHZ and 779-928MHZ.  
   mySwitch.enableReceive(CC1101riceivePin);  // Receiver on interrupt 0 => that is pin #2
   ELECHOUSE_cc1101.SetRx();  // set Receive on
-  
-  // if return 0 then CC1101 is connected
-  if(ELECHOUSE_cc1101.getCC1101()){
-    myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);
-    digitalWrite(CC1101chipSelectPin, HIGH);
-    myESPboy.tft.setTextColor(0xF800);
-    myESPboy.tft.drawString("CC1101 module", 28 ,40);
-    myESPboy.tft.drawString("not found", 37 ,55);
-    while(1) delay(100);
-  }
-
-  myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
-  digitalWrite(CC1101chipSelectPin, LOW);
 }
 
 
@@ -372,7 +338,7 @@ void listen_f(uint8_t storeFlag){
   } 
   
   if (mySwitch.available()) {
-    myESPboy.myLED.setRGB(0,20,0);
+    myLED.setRGB(0,20,0);
     ledFlag = 1;
     counter=millis();
     str="";
@@ -399,17 +365,17 @@ void listen_f(uint8_t storeFlag){
   }
   
   if(millis()-counter>2000){
-    myESPboy.myLED.setRGB(0,20,0);
+    myLED.setRGB(0,20,0);
     counter=millis();
     printConsoleLocal(str, TFT_MAGENTA, 1, 1);
     str+=".";
     if (str.length()>20) str="";
-    myESPboy.myLED.setRGB(0,0,0);
+    myLED.setRGB(0,0,0);
     }
     
   if(ledFlag){
     ledFlag=0;
-    myESPboy.myLED.setRGB(0,0,0);
+    myLED.setRGB(0,0,0);
     printConsoleLocal(F("Listening..."), TFT_MAGENTA, 1, 0);
     printConsoleLocal(F(""), TFT_MAGENTA, 1, 0);
   }
@@ -423,7 +389,7 @@ while(myESPboy.getKeys()) delay(10);
 
 
 void send_f(uint16_t selectedSignal){
-  myESPboy.myLED.setRGB(20,0,0);
+  myLED.setRGB(20,0,0);
   selectedSignal--;
   toggleDisplayModeLocal(1);
   String toPrint = F("Sending ");
@@ -447,7 +413,7 @@ void send_f(uint16_t selectedSignal){
   printConsoleLocal(F("DONE"), TFT_MAGENTA, 1, 0);
   printConsoleLocal("", TFT_MAGENTA, 1, 0);
 
-  myESPboy.myLED.setRGB(0,0,0);
+  myLED.setRGB(0,0,0);
   
   while (!myESPboy.getKeys())delay(10);
   while (myESPboy.getKeys())delay(10);

@@ -117,7 +117,6 @@ private:
   void SpiStart(void);
   void SpiEnd(void);
   void GDO_Set (void);
-  void GDO0_Set (void);
   void Reset (void);
   void setSpi(void);
   void RegConfigSettings(void);
@@ -131,12 +130,7 @@ public:
   void Init(void);
   byte SpiReadStatus(byte addr);
   void setSpiPin(byte sck, byte miso, byte mosi, byte ss);
-  void addSpiPin(byte sck, byte miso, byte mosi, byte ss, byte modul);
   void setGDO(byte gdo0, byte gdo2);
-  void setGDO0(byte gdo0);
-  void addGDO(byte gdo0, byte gdo2, byte modul);
-  void addGDO0(byte gdo0, byte modul);
-  void setModul(byte modul);
   void setCCMode(bool s);
   void setModulation(byte m);
   void setPA(int p);
@@ -153,8 +147,6 @@ public:
    int getRssi(void);
   byte getLqi(void);
   void setSres(void);
-  void setSidle(void);
-  void goSleep(void);
   void SendData(byte *txBuffer, byte size);
   void SendData(char *txchar);
   void SendData(byte *txBuffer, byte size, int t);
@@ -168,8 +160,6 @@ public:
   byte SpiReadReg(byte addr);
   void SpiReadBurstReg(byte addr, byte *buffer, byte num);
   void setClb(byte b, byte s, byte e);
-  bool getCC1101(void);
-  byte getMode(void);
   void setSyncWord(byte sh, byte sl);
   void setAddr(byte v);
   void setWhiteData(bool v);
@@ -181,7 +171,6 @@ public:
   void setManchester(bool v);
   void setSyncMode(byte v);
   void setFEC(bool v);
-  void setPRE(byte v);
   void setPQT(byte v);
   void setCRC_AF(bool v);
   void setAppendStatus(bool v);

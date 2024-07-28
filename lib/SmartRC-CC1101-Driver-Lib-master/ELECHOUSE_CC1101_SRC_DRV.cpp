@@ -22,27 +22,19 @@ cc1101 Driver for RC Switch. Mod by Little Satan. With permission to modify and 
 #define   READ_SINGLE       0x80            //read single
 #define   READ_BURST        0xC0            //read burst
 #define   BYTES_IN_RXFIFO   0x7F            //byte number in RXfifo
-#define   max_modul 6
 
 byte modulation = 2;
 byte frend0;
 byte chan = 0;
 int pa = 12;
 byte last_pa;
-byte SCK_PIN;
-byte MISO_PIN;
-byte MOSI_PIN;
-byte SS_PIN;
+byte SCK_PIN = 13;
+byte MISO_PIN = 12;
+byte MOSI_PIN = 11;
+byte SS_PIN = 10;
 byte GDO0;
 byte GDO2;
-byte SCK_PIN_M[max_modul];
-byte MISO_PIN_M[max_modul];
-byte MOSI_PIN_M[max_modul];
-byte SS_PIN_M[max_modul];
-byte GDO0_M[max_modul];
-byte GDO2_M[max_modul];
-byte gdo_set=0;
-bool spi_ = 0;
+bool _spi = 0;
 bool ccmode = 0;
 float MHz = 433.92;
 byte m4RxBw = 0;
@@ -62,7 +54,7 @@ byte pc0WDATA;
 byte pc0PktForm;
 byte pc0CRC_EN;
 byte pc0LenConf;
-byte trxstate = 0;
+byte trxstate;
 byte clb1[2]= {24,28};
 byte clb2[2]= {31,38};
 byte clb3[2]= {65,76};
@@ -85,19 +77,18 @@ uint8_t PA_TABLE_915[10] {0x03,0x0E,0x1E,0x27,0x38,0x8E,0x84,0xCC,0xC3,0xC0,};  
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiStart(void)
 {
-/*
   // initialize the SPI pins
-  pinMode(SCK_PIN, OUTPUT);
-  pinMode(MOSI_PIN, OUTPUT);
-  pinMode(MISO_PIN, INPUT);
-  pinMode(SS_PIN, OUTPUT);
+  ////pinMode(SCK_PIN, OUTPUT);
+  ////pinMode(MOSI_PIN, OUTPUT);
+  ////pinMode(MISO_PIN, INPUT);
+  ////pinMode(SS_PIN, OUTPUT);
+
   // enable SPI
   #ifdef ESP32
-  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
+  ////SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
   #else
-  SPI.begin();
+  ////SPI.begin();
   #endif
-  */
 }
 /****************************************************************
 *FUNCTION NAME:SpiEnd
@@ -109,28 +100,19 @@ void ELECHOUSE_CC1101::SpiEnd(void)
 {
   // disable SPI
   SPI.endTransaction();
-  //SPI.end();
+  ////SPI.end();
+  ////digitalWrite(SCK_PIN, LOW);
 }
 /****************************************************************
 *FUNCTION NAME: GDO_Set()
-*FUNCTION     : set GDO0,GDO2 pin for serial pinmode.
+*FUNCTION     : set GDO0,GDO2 pin
 *INPUT        : none
 *OUTPUT       : none
 ****************************************************************/
 void ELECHOUSE_CC1101::GDO_Set (void)
 {
-	pinMode(GDO0, OUTPUT);
-	pinMode(GDO2, INPUT);
-}
-/****************************************************************
-*FUNCTION NAME: GDO_Set()
-*FUNCTION     : set GDO0 for internal transmission mode.
-*INPUT        : none
-*OUTPUT       : none
-****************************************************************/
-void ELECHOUSE_CC1101::GDO0_Set (void)
-{
-  pinMode(GDO0, INPUT);
+	pinMode(GDO0, INPUT);
+	pinMode(GDO2, OUTPUT);
 }
 /****************************************************************
 *FUNCTION NAME:Reset
@@ -158,8 +140,16 @@ void ELECHOUSE_CC1101::Reset (void)
 ****************************************************************/
 void ELECHOUSE_CC1101::Init(void)
 {
+
   setSpi();
   SpiStart();                   //spi initialization
+    // initialize the SPI pins
+  //pinMode(SCK_PIN, OUTPUT);
+  //pinMode(MOSI_PIN, OUTPUT);
+  //pinMode(MISO_PIN, INPUT);
+  pinMode(SS_PIN, OUTPUT);
+  //SPI.begin();
+
   //digitalWrite(SS_PIN, HIGH);
   //digitalWrite(SCK_PIN, HIGH);
   //digitalWrite(MOSI_PIN, LOW);
@@ -287,8 +277,8 @@ byte ELECHOUSE_CC1101::SpiReadStatus(byte addr)
 *OUTPUT       :none
 ****************************************************************/
 void ELECHOUSE_CC1101::setSpi(void){
-  if (spi_ == 0){
-  #if defined __AVR_ATmega168__ || defined __AVR_ATmega328P__
+  if (_spi == 0){
+  /*#if defined __AVR_ATmega168__ || defined __AVR_ATmega328P__
   SCK_PIN = 13; MISO_PIN = 12; MOSI_PIN = 11; SS_PIN = 10;
   #elif defined __AVR_ATmega1280__ || defined __AVR_ATmega2560__
   SCK_PIN = 52; MISO_PIN = 50; MOSI_PIN = 51; SS_PIN = 53;
@@ -298,7 +288,8 @@ void ELECHOUSE_CC1101::setSpi(void){
   SCK_PIN = 18; MISO_PIN = 19; MOSI_PIN = 23; SS_PIN = 5;
   #else
   SCK_PIN = 13; MISO_PIN = 12; MOSI_PIN = 11; SS_PIN = 10;
-  #endif
+  #endif*/
+  SCK_PIN = 14; MISO_PIN = 12; MOSI_PIN = 13; SS_PIN = 15;
 }
 }
 /****************************************************************
@@ -308,24 +299,11 @@ void ELECHOUSE_CC1101::setSpi(void){
 *OUTPUT       :none
 ****************************************************************/
 void ELECHOUSE_CC1101::setSpiPin(byte sck, byte miso, byte mosi, byte ss){
-  spi_ = 1;
+  _spi = 1;
   SCK_PIN = sck;
   MISO_PIN = miso;
   MOSI_PIN = mosi;
   SS_PIN = ss;
-}
-/****************************************************************
-*FUNCTION NAME:COSTUM SPI
-*FUNCTION     :set costum spi pins.
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::addSpiPin(byte sck, byte miso, byte mosi, byte ss, byte modul){
-  spi_ = 1;
-  SCK_PIN_M[modul] = sck;
-  MISO_PIN_M[modul] = miso;
-  MOSI_PIN_M[modul] = mosi;
-  SS_PIN_M[modul] = ss;
 }
 /****************************************************************
 *FUNCTION NAME:GDO Pin settings
@@ -337,58 +315,6 @@ void ELECHOUSE_CC1101::setGDO(byte gdo0, byte gdo2){
 GDO0 = gdo0;
 GDO2 = gdo2;  
 GDO_Set();
-}
-/****************************************************************
-*FUNCTION NAME:GDO0 Pin setting
-*FUNCTION     :set GDO0 Pin
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::setGDO0(byte gdo0){
-GDO0 = gdo0;
-GDO0_Set();
-}
-/****************************************************************
-*FUNCTION NAME:GDO Pin settings
-*FUNCTION     :add GDO Pins
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::addGDO(byte gdo0, byte gdo2, byte modul){
-GDO0_M[modul] = gdo0;
-GDO2_M[modul] = gdo2;  
-gdo_set=2;
-GDO_Set();
-}
-/****************************************************************
-*FUNCTION NAME:add GDO0 Pin
-*FUNCTION     :add GDO0 Pin
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::addGDO0(byte gdo0, byte modul){
-GDO0_M[modul] = gdo0;
-gdo_set=1;
-GDO0_Set();
-}
-/****************************************************************
-*FUNCTION NAME:set Modul
-*FUNCTION     :change modul
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::setModul(byte modul){
-  SCK_PIN = SCK_PIN_M[modul];
-  MISO_PIN = MISO_PIN_M[modul];
-  MOSI_PIN = MOSI_PIN_M[modul];
-  SS_PIN = SS_PIN_M[modul];
-  if (gdo_set==1){
-  GDO0 = GDO0_M[modul];
-  }
-  else if (gdo_set==2){
-  GDO0 = GDO0_M[modul];
-  GDO2 = GDO2_M[modul];
-  }
 }
 /****************************************************************
 *FUNCTION NAME:CCMode
@@ -610,29 +536,6 @@ clb4[1]=e;
 }
 }
 /****************************************************************
-*FUNCTION NAME:getCC1101
-*FUNCTION     :Test Spi connection and return 1 when true.
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-bool ELECHOUSE_CC1101::getCC1101(void){
-setSpi();
-if (SpiReadStatus(0x31)>0){
-return 1;
-}else{
-return 0;
-}
-}
-/****************************************************************
-*FUNCTION NAME:getMode
-*FUNCTION     :Return the Mode. Sidle = 0, TX = 1, Rx = 2.
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-byte ELECHOUSE_CC1101::getMode(void){
-return trxstate;
-}
-/****************************************************************
 *FUNCTION NAME:Set Sync_Word
 *FUNCTION     :Sync Word
 *INPUT        :none
@@ -807,19 +710,6 @@ void ELECHOUSE_CC1101::setFEC(bool v){
 Split_MDMCFG1();
 m1FEC=0;
 if (v==1){m1FEC=128;}
-SpiWriteReg(CC1101_MDMCFG1, m1FEC+m1PRE+m1CHSP);
-}
-/****************************************************************
-*FUNCTION NAME:Set PRE
-*FUNCTION     :Sets the minimum number of preamble bytes to be transmitted.
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::setPRE(byte v){
-Split_MDMCFG1();
-m1PRE=0;
-if (v>7){v=7;}
-m1PRE = v*16;
 SpiWriteReg(CC1101_MDMCFG1, m1FEC+m1PRE+m1CHSP);
 }
 /****************************************************************
@@ -1079,7 +969,6 @@ void ELECHOUSE_CC1101::SetTx(void)
 ****************************************************************/
 void ELECHOUSE_CC1101::SetRx(void)
 {
-  SpiStrobe(CC1101_SIDLE);
   SpiStrobe(CC1101_SRX);        //start receive
   trxstate=2;
 }
@@ -1091,8 +980,8 @@ void ELECHOUSE_CC1101::SetRx(void)
 ****************************************************************/
 void ELECHOUSE_CC1101::SetTx(float mhz)
 {
-  SpiStrobe(CC1101_SIDLE);
   setMHZ(mhz);
+  SpiStrobe(CC1101_SIDLE);
   SpiStrobe(CC1101_STX);        //start send
   trxstate=1;
 }
@@ -1104,7 +993,6 @@ void ELECHOUSE_CC1101::SetTx(float mhz)
 ****************************************************************/
 void ELECHOUSE_CC1101::SetRx(float mhz)
 {
-  SpiStrobe(CC1101_SIDLE);
   setMHZ(mhz);
   SpiStrobe(CC1101_SRX);        //start receive
   trxstate=2;
@@ -1143,30 +1031,7 @@ return lqi;
 ****************************************************************/
 void ELECHOUSE_CC1101::setSres(void)
 {
-  SpiStrobe(CC1101_SRES);
-  trxstate=0;
-}
-/****************************************************************
-*FUNCTION NAME:setSidle
-*FUNCTION     :set Rx / TX Off
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::setSidle(void)
-{
-  SpiStrobe(CC1101_SIDLE);
-  trxstate=0;
-}
-/****************************************************************
-*FUNCTION NAME:goSleep
-*FUNCTION     :set cc1101 Sleep on
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::goSleep(void){
-  trxstate=0;
-  SpiStrobe(0x36);//Exit RX / TX, turn off frequency synthesizer and exit
-  SpiStrobe(0x39);//Enter power down mode when CSn goes high.
+  SpiStrobe(CC1101_SRES);                  //reset cc1101  
 }
 /****************************************************************
 *FUNCTION NAME:Char direct SendData

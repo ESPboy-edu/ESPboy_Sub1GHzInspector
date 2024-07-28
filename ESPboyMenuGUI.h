@@ -5,8 +5,6 @@ https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
 v1.0
 */
 
-#undef U8g2
-
 //!!!!!!!!!!!!!!!!!
 //#define U8g2  //if defined then using font 4x6, if commented using font 6x8
 #define buttonclicks //if defined - button are clicking but it takes more than 1kb RAM, if commented - no clicks and more free RAM
@@ -16,12 +14,10 @@ v1.0
 #ifndef ESPboy_MenuGUI
 #define ESPboy_MenuGUI
 
-#include "ESPboyInit.h"
-#include "ESPboyInit.cpp"
-
+#include <Adafruit_MCP23017.h>
+#include <TFT_eSPI.h>
 #include <FS.h> 
 using fs::FS;
-
 
 #ifdef U8g2
  #include "U8g2_for_TFT_eSPI.h"
@@ -52,7 +48,8 @@ using fs::FS;
 class ESPboyMenuGUI{
 
 private:
-ESPboyInit *myESPboy;
+  Adafruit_MCP23017 *mcp; 
+  TFT_eSPI *tft;
 #ifdef U8g2
   U8g2_for_TFT_eSPI *u8f;
 #endif
@@ -67,10 +64,11 @@ struct menuStruct{
   uint16_t menuCurrent;
 } menuList;
 
+uint8_t getKeys();
 void menuDraw();
   
 public:
-  ESPboyMenuGUI(ESPboyInit *myESPboyPointer);
+  ESPboyMenuGUI(TFT_eSPI *tftMenuGUI, Adafruit_MCP23017 *mcpMenuGUI);
   uint16_t menuInit(const char** menuLinesF, uint16_t menuLineColorF, uint16_t menuUnselectedLineColorF, uint16_t menuSelectionColorF);
 };
 
