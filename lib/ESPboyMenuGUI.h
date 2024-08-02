@@ -5,8 +5,9 @@ https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
 v1.0
 */
 
+
 //!!!!!!!!!!!!!!!!!
-//#define U8g2  //if defined then using font 4x6, if commented using font 6x8
+//#define U8g2_MENU  //if defined then using font 4x6, if commented using font 6x8
 #define buttonclicks //if defined - button are clicking but it takes more than 1kb RAM, if commented - no clicks and more free RAM
 ////!!!!!!!!!!!!!!!!!
 
@@ -14,24 +15,26 @@ v1.0
 #ifndef ESPboy_MenuGUI
 #define ESPboy_MenuGUI
 
-#include <Adafruit_MCP23017.h>
-#include <TFT_eSPI.h>
+#include "ESPboyInit.h"
+#include "ESPboyInit.cpp"
+
 #include <FS.h> 
 using fs::FS;
 
-#ifdef U8g2
+
+#ifdef U8g2_MENU
  #include "U8g2_for_TFT_eSPI.h"
 #endif
 
-#ifdef U8g2
- #define GUI_FONT_WIDTH 4
- #define GUI_FONT_HEIGHT 6
+#ifdef U8g2_MENU
+ #define GUI_FONT_WIDTH_MENU 4
+ #define GUI_FONT_HEIGHT_MENU 6
 #else
- #define GUI_FONT_WIDTH 6
- #define GUI_FONT_HEIGHT 8
+ #define GUI_FONT_WIDTH_MENU 6
+ #define GUI_FONT_HEIGHT_MENU 8
 #endif
 
-#define MENU_SPACE_BETWEEN_LINES (GUI_FONT_HEIGHT+3)
+#define MENU_SPACE_BETWEEN_LINES (GUI_FONT_HEIGHT_MENU+3)
 #define MENU_MAX_LINES_ONSCREEN (128/MENU_SPACE_BETWEEN_LINES)
 
 #define MenuGUI_PAD_LEFT        0x01
@@ -48,9 +51,8 @@ using fs::FS;
 class ESPboyMenuGUI{
 
 private:
-  Adafruit_MCP23017 *mcp; 
-  TFT_eSPI *tft;
-#ifdef U8g2
+ESPboyInit *myESPboy;
+#ifdef U8g2_MENU
   U8g2_for_TFT_eSPI *u8f;
 #endif
 
@@ -64,11 +66,10 @@ struct menuStruct{
   uint16_t menuCurrent;
 } menuList;
 
-uint8_t getKeys();
 void menuDraw();
   
 public:
-  ESPboyMenuGUI(TFT_eSPI *tftMenuGUI, Adafruit_MCP23017 *mcpMenuGUI);
+  ESPboyMenuGUI(ESPboyInit *myESPboyPointer);
   uint16_t menuInit(const char** menuLinesF, uint16_t menuLineColorF, uint16_t menuUnselectedLineColorF, uint16_t menuSelectionColorF);
 };
 

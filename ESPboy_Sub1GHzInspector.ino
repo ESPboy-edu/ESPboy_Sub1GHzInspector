@@ -5,10 +5,15 @@ https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
 v1.0
 */
 
-#include "ESPboyInit.h"
-#include "ESPboyTerminalGUI.h"
-#include "ESPboyMenuGUI.h"
-#include "ESPboyLED.h"
+#include "lib/ESPboyInit.h"
+#include "lib/ESPboyInit.cpp"
+#include "lib/ESPboyTerminalGUI.h"
+#include "lib/ESPboyTerminalGUI.cpp"
+#include "lib/ESPboyMenuGUI.h"
+#include "lib/ESPboyMenuGUI.cpp"
+//#include "lib/ESPboyOTA2.h"
+//#include "lib/ESPboyOTA2.cpp"
+
 #include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.h"
 #include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.cpp"
 #include "lib/rc-switch-protocollessreceiver/RCSwitch.h"
@@ -69,7 +74,7 @@ RCSwitch mySwitch;
 ESPboyInit myESPboy;
 ESPboyTerminalGUI *terminalGUIobj = NULL;
 ESPboyMenuGUI *menuGUIobj = NULL;
-ESPboyLED myLED;
+//ESPboyOTA2 *OTA2obj = NULL;
 
 char EEPROMmagicNo[4]={0xCC,0xCD,0xCE,0};//EEPROM marker of Sub1Ghz storage
 
@@ -307,9 +312,16 @@ void setup(){
   readEEPROM();
   
   myESPboy.begin("Sub1GHz inspector");
-  myLED.begin(&myESPboy.mcp);
+/*
+  //Check OTA2
+  if (myESPboy.getKeys()&PAD_ACT || myESPboy.getKeys()&PAD_ESC) { 
+     terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
+     OTA2obj = new ESPboyOTA2(terminalGUIobj);
+  }
+*/
+  
   terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
-  menuGUIobj = new ESPboyMenuGUI(&myESPboy.tft, &myESPboy.mcp);
+  menuGUIobj = new ESPboyMenuGUI(&myESPboy);
 
   myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
   digitalWrite(CC1101chipSelectPin, LOW);
@@ -351,7 +363,7 @@ void listen_f(uint8_t storeFlag){
   } 
   
   if (mySwitch.available()) {
-    myLED.setRGB(0,20,0);
+    myESPboy.myLED.setRGB(0,20,0);
     ledFlag = 1;
     counter=millis();
     str="";
@@ -378,17 +390,17 @@ void listen_f(uint8_t storeFlag){
   }
   
   if(millis()-counter>2000){
-    myLED.setRGB(0,20,0);
+    myESPboy.myLED.setRGB(0,20,0);
     counter=millis();
     printConsoleLocal(str, TFT_MAGENTA, 1, 1);
     str+=".";
     if (str.length()>20) str="";
-    myLED.setRGB(0,0,0);
+    myESPboy.myLED.setRGB(0,0,0);
     }
     
   if(ledFlag){
     ledFlag=0;
-    myLED.setRGB(0,0,0);
+    myESPboy.myLED.setRGB(0,0,0);
     printConsoleLocal(F("Listening..."), TFT_MAGENTA, 1, 0);
     printConsoleLocal(F(""), TFT_MAGENTA, 1, 0);
   }
@@ -402,7 +414,7 @@ while(myESPboy.getKeys()) delay(10);
 
 
 void send_f(uint16_t selectedSignal){
-  myLED.setRGB(20,0,0);
+  myESPboy.myLED.setRGB(20,0,0);
   selectedSignal--;
   toggleDisplayModeLocal(1);
   String toPrint = F("Sending ");
@@ -426,7 +438,7 @@ void send_f(uint16_t selectedSignal){
   printConsoleLocal(F("DONE"), TFT_MAGENTA, 1, 0);
   printConsoleLocal("", TFT_MAGENTA, 1, 0);
 
-  myLED.setRGB(0,0,0);
+  myESPboy.myLED.setRGB(0,0,0);
   
   while (!myESPboy.getKeys())delay(10);
   while (myESPboy.getKeys())delay(10);
