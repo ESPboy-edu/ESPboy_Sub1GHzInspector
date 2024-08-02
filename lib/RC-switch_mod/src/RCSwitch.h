@@ -10,7 +10,7 @@
   - Frank Oltmanns / <first name>.<last name>(at)gmail(dot)com
   - Max Horn / max(at)quendi(dot)de
   - Robert ter Vehn / <first name>.<last name>(at)gmail(dot)com
-  
+
   Project home: https://github.com/sui77/rc-switch/
 
   This library is free software; you can redistribute it and/or
@@ -58,13 +58,20 @@
 
 // Number of maximum high/Low changes per packet.
 // We can handle up to (unsigned long) => 32 bit * 2 H/L changes per bit + 2 for sync
-#define RCSWITCH_MAX_CHANGES 67
+// Для keeloq нужно увеличить RCSWITCH_MAX_CHANGES до 23+1+66*2+1=157
+#define RCSWITCH_MAX_CHANGES 157        // default 67
+
+// separationLimit: minimum microseconds between received codes, closer codes are ignored.
+// according to discussion on issue #14 it might be more suitable to set the separation
+// limit to the same time as the 'low' part of the sync signal for the current protocol.
+// should be set to the minimum value of pulselength * the sync signal
+#define RCSWITCH_SEPARATION_LIMIT 4100
 
 class RCSwitch {
 
   public:
     RCSwitch();
-    
+
     void switchOn(int nGroupNumber, int nSwitchNumber);
     void switchOff(int nGroupNumber, int nSwitchNumber);
     void switchOn(const char* sGroup, int nSwitchNumber);
@@ -77,9 +84,9 @@ class RCSwitch {
     void switchOff(char sGroup, int nDevice);
 
     void sendTriState(const char* sCodeWord);
-    void send(unsigned long code, unsigned int length);
+    void send(uint64_t code, unsigned int length);
     void send(const char* sCodeWord);
-    
+
     #if not defined( RCSwitchDisableReceiving )
     void enableReceive(int interrupt);
     void enableReceive();
@@ -87,25 +94,25 @@ class RCSwitch {
     bool available();
     void resetAvailable();
 
-    unsigned long getReceivedValue();
+    unsigned long long getReceivedValue();
     unsigned int getReceivedBitlength();
     unsigned int getReceivedDelay();
     unsigned int getReceivedProtocol();
     unsigned int* getReceivedRawdata();
-    bool getReceivedInverted();
-    unsigned int getReceivedLevelInFirstTiming();
+    uint8_t getNumProtos();
     #endif
-  
+
     void enableTransmit(int nTransmitterPin);
     void disableTransmit();
     void setPulseLength(int nPulseLength);
     void setRepeatTransmit(int nRepeatTransmit);
     #if not defined( RCSwitchDisableReceiving )
     void setReceiveTolerance(int nPercent);
+    void setReceiveProtocolMask(unsigned long long mask);
     #endif
 
     /**
-     * Description of a single pulse, which consists of a high signal
+     * Description of a single pule, which consists of a high signal
      * whose duration is "high" times the base pulse length, followed
      * by a low signal lasting "low" times the base pulse length.
      * Thus, the pulse overall lasts (high+low)*pulseLength
@@ -122,8 +129,11 @@ class RCSwitch {
     struct Protocol {
         /** base pulse length in microseconds, e.g. 350 */
         uint16_t pulseLength;
+        uint8_t PreambleFactor;
+        HighLow Preamble;
+        uint8_t HeaderFactor;
+        HighLow Header;
 
-        HighLow syncFactor;
         HighLow zero;
         HighLow one;
 
@@ -144,6 +154,7 @@ class RCSwitch {
          * FOO.low*pulseLength microseconds.
          */
         bool invertedSignal;
+        uint16_t Guard;
     };
 
     void setProtocol(Protocol protocol);
@@ -161,30 +172,43 @@ class RCSwitch {
     static void handleInterrupt();
     static bool receiveProtocol(const int p, unsigned int changeCount);
     int nReceiverInterrupt;
-    static int nStaticReceiverPin; // needed because nReceiverInterrupt (receiver pin) can not be read from handleInterrupt because it is static
     #endif
     int nTransmitterPin;
     int nRepeatTransmit;
-    
     Protocol protocol;
 
     #if not defined( RCSwitchDisableReceiving )
     static int nReceiveTolerance;
-    volatile static unsigned long nReceivedValue;
+    volatile static unsigned long long nReceivedValue;
+    volatile static unsigned long long nReceiveProtocolMask;
     volatile static unsigned int nReceivedBitlength;
     volatile static unsigned int nReceivedDelay;
     volatile static unsigned int nReceivedProtocol;
-    static bool nReceivedInverted;
-    static unsigned int nReceivedLevelInFirstTiming;
     const static unsigned int nSeparationLimit;
-    /* 
+    /*
      * timings[0] contains sync timing, followed by a number of bits
      */
-    static unsigned int firstperiodlevel;
     static unsigned int timings[RCSWITCH_MAX_CHANGES];
+    // буфер длительностей последних четырех пакетов, [0] - последний
+    static unsigned int buftimings[4];
     #endif
 
-    
+
+};
+
+////
+class Keeloq {
+  public:
+    Keeloq();
+    void SetKey(unsigned long keyHigh, unsigned long keyLow);
+    unsigned long GetKey(bool HighLow);
+    unsigned long Encrypt(unsigned long data);
+    unsigned long Decrypt(unsigned long data);
+    void NormLearn(unsigned long FixSN);
+    unsigned long ReflectPack(unsigned long PackSrc);
+  private:
+    unsigned long _keyHigh;
+    unsigned long _keyLow;
 };
 
 #endif

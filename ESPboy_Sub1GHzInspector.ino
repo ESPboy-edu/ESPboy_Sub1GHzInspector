@@ -2,7 +2,9 @@
 ESPboy Sub1Ghz inspector
 for www.ESPboy.com project by RomanS
 https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
-v1.0
+v2.0
+
+thanks to Gerashka for update protocols and lib modding https://github.com/gerashk/ESPboy_Sub1GHz_Mod
 */
 
 #include "lib/ESPboyInit.h"
@@ -16,8 +18,8 @@ v1.0
 
 #include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.h"
 #include "lib/SmartRC-CC1101-Driver-Lib-master/ELECHOUSE_CC1101_SRC_DRV.cpp"
-#include "lib/rc-switch-protocollessreceiver/RCSwitch.h"
-#include "lib/rc-switch-protocollessreceiver/RCSwitch.cpp"
+#include "lib/rc-switch_mod/src/RCSwitch.h"
+#include "lib/rc-switch_mod/src/RCSwitch.cpp"
 #include <ESP_EEPROM.h>
 
 #define CC1101riceivePin    3
@@ -25,24 +27,54 @@ v1.0
 #define CC1101chipSelectPin D8
 #define TFTchipSelectPin    8
 
+#define APP_ID 0xCCCD
 #define MAX_RECORDS_TO_STORE 40
 #define DEFAULT_SIGNAL_REPEAT_NUMBER 3
+#define EEPROM_OFFSET 10
+
+
 
 String protDecode[]={
-  "Unknown",
-  "350 {1,31} {1,3} {3,1} false",   // protocol1
-  "650 {1,10} {1,2} {2,1} false",   // protocol 2
-  "100 {30 71} {4 11} {9 6} false", // protocol 3
-  "380 {1 6} {1 3} {3 1} false",    // protocol 4
-  "500 {6 14} {1 2} {2 1} false",   // protocol 5
-  "450 {23 1} {1 2} {2 1} true",    // protocol 6 (HT6P20B)
-  "320 {36 1} {1 2} {2 1} true",    // protocol 7 (Came) Holtek HT-12E
-  "700 {36 1} {1 2} {2 1} true",    // protocol 8 (Nice) Holtek HT-12E
-  "299 {74 1} {1 2} {2 1} true",    // protocol 9 (CAME)
-  "150 {34 3} {1 3} {3 1} false", // protocol 10 (AC114)
-  "360 {13 4} {1 2} {2 1} false", // protocol 11 (DC250)
-  "270 {1 36} {1 2} {2 1} true",  // protocol 12 (REMOCON-555)
-  "150 {2 62} {1 6} {6 1} false"  // protocol 13 (HS2303-PT, i. e. used in AUKEY Remote)
+"Unknown",
+"Protocol 01 Princeton, PT-2240",
+"Protocol 02 AT-Motor?",
+"Protocol 03",
+"Protocol 04",
+"Protocol 05",
+"Protocol 06 HT6P20B",
+"Protocol 07 HS2303-PT, i. e. used in AUKEY Remote",
+"Protocol 08 Came 12bit, HT12E",
+"Protocol 09 Nice_Flo 12bit",
+"Protocol 10 V2 phoenix",
+"Protocol 11 Nice_FloR-S 52bit",
+"Protocol 12 Keeloq 64/66 falseok",
+"Protocol 13 test CFM",
+"Protocol 14 test StarLine",
+"Protocol 15",
+"Protocol 16 Einhell",
+"Protocol 17 InterTechno PAR-1000",
+"Protocol 18 Intertechno ITT-1500",
+"Protocol 19 Murcury",
+"Protocol 20 AC114",
+"Protocol 21 DC250",
+"Protocol 22 Mandolyn/Lidl TR-502MSV/RC-402/RC-402DX",
+"Protocol 23 Lidl TR-502MSV/RC-402 - Flavien",
+"Protocol 24 Lidl TR-502MSV/RC701",
+"Protocol 25 NEC",
+"Protocol 26 Arlec RC210",
+"Protocol 27 Zap, FHT-7901",
+"Protocol 28", // github.com/sui77/rc-switch/pull/115
+"Protocol 29 NEXA",
+"Protocol 30 Anima",
+"Protocol 31 Mertik Maxitrol G6R-H4T1",
+"Protocol 32", //github.com/sui77/rc-switch/pull/277
+"Protocol 33 Dooya Control DC2708L",
+"Protocol 34 DIGOO SD10 ", //so as to use this protocol RCSWITCH_SEPARATION_LIMIT must be set to 2600
+"Protocol 35 Dooya 5-Channel blinds remote DC1603",
+"Protocol 36 DC2700AC", //Dooya remote DC2700AC for Dooya DT82TV curtains motor
+"Protocol 37 DEWENWILS Power Strip",
+"Protocol 38 Nexus weather, 36 bit",
+"Protocol 39 Louvolite with premable"
 };
 
 
@@ -76,7 +108,10 @@ ESPboyTerminalGUI *terminalGUIobj = NULL;
 ESPboyMenuGUI *menuGUIobj = NULL;
 //ESPboyOTA2 *OTA2obj = NULL;
 
-char EEPROMmagicNo[4]={0xCC,0xCD,0xCE,0};//EEPROM marker of Sub1Ghz storage
+struct EEPROMinitStruct{
+ uint32_t appId = APP_ID;
+ uint8_t  recordsQuantity = 0;
+}EEPROMinit;
 
 struct recordStored{
   char     recordName[20];
@@ -205,7 +240,7 @@ void drawDecodedSignal() {
   printConsoleLocal(toPrint, TFT_YELLOW, 1, 0);
   printConsoleLocal(protDecode[mySwitch.getReceivedProtocol()], TFT_YELLOW, 1, 0);
 
-  uint16_t databitsoffset = abs((int16_t)mySwitch.getReceivedLevelInFirstTiming() - (int16_t)mySwitch.getReceivedInverted());
+  uint16_t databitsoffset = 0;//abs((int16_t)mySwitch.getReceivedLevelInFirstTiming() - (int16_t)mySwitch.getReceivedInverted());
   uint32_t dataduration = 0;
   for (uint16_t i = 1 + databitsoffset; i < numberoftimings - 1 + databitsoffset; i++)
     dataduration += databuffer[i];
@@ -227,7 +262,7 @@ void drawDecodedSignal() {
   toPrint+=" ";
   toPrint+=protocolratio;
   toPrint+= "} ";
-  toPrint+=(mySwitch.getReceivedInverted()) ? "true" : "false";
+  //toPrint+=(mySwitch.getReceivedInverted()) ? "true" : "false";
   if(!mySwitch.getReceivedProtocol())printConsoleLocal(toPrint, TFT_RED, 1, 0);
   else printConsoleLocal(toPrint, TFT_GREEN, 1, 0);
 
@@ -236,15 +271,15 @@ void drawDecodedSignal() {
   toPrint+=" ms";
   printConsoleLocal(toPrint, TFT_WHITE, 1, 0);
   
-  toPrint="FIRST LEV: ";
-  if (mySwitch.getReceivedLevelInFirstTiming()) toPrint += "HIGH";
-  else toPrint+= "LOW";
-  printConsoleLocal(toPrint, TFT_WHITE, 1, 0);
+  //toPrint="FIRST LEV: ";
+  //if (mySwitch.getReceivedLevelInFirstTiming()) toPrint += "HIGH";
+  //else toPrint+= "LOW";
+  //printConsoleLocal(toPrint, TFT_WHITE, 1, 0);
 
-  toPrint="IS INV: ";
-  if (mySwitch.getReceivedInverted()) toPrint+="TRUE";
-  else toPrint+="FALSE";
-  printConsoleLocal(toPrint, TFT_WHITE, 1, 0);
+  //toPrint="IS INV: ";
+  //if (mySwitch.getReceivedInverted()) toPrint+="TRUE";
+  //else toPrint+="FALSE";
+  //printConsoleLocal(toPrint, TFT_WHITE, 1, 0);
 
   printConsoleLocal(F("DATA: "), TFT_BLUE, 1, 0);
   toPrint="";
@@ -259,29 +294,28 @@ void drawDecodedSignal() {
 
 
 
-void readEEPROM(){
- uint16_t quantityOfSignalsInEEPROM;
-  if (EEPROM.read(0) == EEPROMmagicNo[0] && EEPROM.read(1) == EEPROMmagicNo[1] && EEPROM.read(2) == EEPROMmagicNo[2]){
-    quantityOfSignalsInEEPROM = EEPROM.read(3);
-    for (uint16_t i=0; i<quantityOfSignalsInEEPROM; i++){
+void readEEPROM(){  
+ EEPROM.get(EEPROM_OFFSET, EEPROMinit);
+ if (EEPROMinit.appId != APP_ID){
+   EEPROMinit.appId = APP_ID;
+   EEPROMinit.recordsQuantity = 0;
+   EEPROM.put(EEPROM_OFFSET, EEPROMinit);
+   EEPROM.commit();
+ }
+ 
+ for (uint8_t i=0; i<EEPROMinit.recordsQuantity; i++){
       recordStoredVector.push_back(recordStored());
-      EEPROM.get(i*(sizeof(recordStored))+10, recordStoredVector.back());
-      };
-  }
-  else{
-    for (uint8_t i=0; i<4; i++)
-      EEPROM.write(i, EEPROMmagicNo[i]);
-      EEPROM.commit();}
-  };
+      EEPROM.get(EEPROM_OFFSET + sizeof(EEPROMinit) + i*(sizeof(recordStored)), recordStoredVector.back());
+ };
+};
 
 
 
 void writeEEPROMall(){
- uint16_t quantityOfSignalsToEEPROM;
-  quantityOfSignalsToEEPROM = recordStoredVector.size();
-  EEPROM.write(3, quantityOfSignalsToEEPROM);
-  for (uint16_t i=0; i<quantityOfSignalsToEEPROM; i++){
-    EEPROM.put(i*(sizeof(recordStored))+10, recordStoredVector[i]);}
+  EEPROMinit.recordsQuantity = recordStoredVector.size();
+  EEPROM.put(EEPROM_OFFSET, EEPROMinit);
+  for (uint8_t i=0; i<EEPROMinit.recordsQuantity; i++)
+    EEPROM.put(EEPROM_OFFSET + sizeof(EEPROMinit) + i*(sizeof(recordStored)), recordStoredVector[i]);
   EEPROM.commit();
 };
 
@@ -312,8 +346,9 @@ void setup(){
   readEEPROM();
   
   myESPboy.begin("Sub1GHz inspector");
-/*
+
   //Check OTA2
+/*
   if (myESPboy.getKeys()&PAD_ACT || myESPboy.getKeys()&PAD_ESC) { 
      terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
      OTA2obj = new ESPboyOTA2(terminalGUIobj);
@@ -344,6 +379,7 @@ void setup(){
 }
 
 
+
 void listen_f(uint8_t storeFlag){
   String str="";
   uint8_t ledFlag = 1;
@@ -353,8 +389,8 @@ void listen_f(uint8_t storeFlag){
  toggleDisplayModeLocal(1); 
  
  while(!(myESPboy.getKeys()&PAD_ESC)){
-
-  if(myESPboy.getKeys()){
+  uint8_t pressedButtons = myESPboy.getKeys();
+  if(pressedButtons && !(pressedButtons&PAD_RGT) && !(pressedButtons&PAD_LFT)){
     printConsoleLocal(F("Stop"), TFT_MAGENTA, 1, 1);
     printConsoleLocal(F("LGT/RGT-scroll. B-exit"), TFT_MAGENTA, 1, 0);
     doScrollLocal();
@@ -501,7 +537,7 @@ gotolabel:
   userInputName="";
 
   for (uint16_t i=0; i<recordStoredVector.size(); i++){
-  menuList[i]=recordStoredVector[i].recordName;}
+    menuList[i]=recordStoredVector[i].recordName;}
   menuList[recordStoredVector.size()] = NULL;
 
   selectedSignal = (menuInitLocal((const char **)menuList, TFT_YELLOW, TFT_BLUE, TFT_BLUE));

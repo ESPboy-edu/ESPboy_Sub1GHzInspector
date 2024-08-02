@@ -1,7 +1,7 @@
 /*
   RCSwitch - Arduino libary for remote control outlet switches
   Copyright (c) 2011 Suat Özgür.  All right reserved.
-  
+
   Contributors:
   - Andre Koehler / info(at)tomate-online(dot)de
   - Gordeev Andrey Vladimirovich / gordeev(at)openpyro(dot)com
@@ -13,8 +13,7 @@
   - Robert ter Vehn / <first name>.<last name>(at)gmail(dot)com
   - Johann Richard / <first name>.<last name>(at)gmail(dot)com
   - Vlad Gheorghe / <first name>.<last name>(at)gmail(dot)com https://github.com/vgheo
-  - Martin Laclaustra / <first name>.<last name>(at)gmail(dot)com
-  
+
   Project home: https://github.com/sui77/rc-switch/
 
   This library is free software; you can redistribute it and/or
@@ -31,6 +30,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
+//#define KeeLoq_NLF              0x3A5C742EUL
+#define KeeLoq_NLF    0x3A5C742E
 
 #include "RCSwitch.h"
 
@@ -41,52 +42,122 @@
     #define memcpy_P(dest, src, num) memcpy((dest), (src), (num))
 #endif
 
-#ifdef ESP8266
+#if defined(ESP8266)
     // interrupt handler and related code must be in RAM on ESP8266,
     // according to issue #46.
     #define RECEIVE_ATTR ICACHE_RAM_ATTR
+    #define VAR_ISR_ATTR
+#elif defined(ESP32)
+    #define RECEIVE_ATTR IRAM_ATTR
+    #define VAR_ISR_ATTR DRAM_ATTR
 #else
     #define RECEIVE_ATTR
+    #define VAR_ISR_ATTR
 #endif
 
 
-/* Format for protocol definitions:
- * {pulselength, Sync bit, "0" bit, "1" bit}
- * 
- * pulselength: pulse length in microseconds, e.g. 350
- * Sync bit: {1, 31} means 1 high pulse and 31 low pulses
- *     (perceived as a 31*pulselength long pulse, total length of sync bit is
- *     32*pulselength microseconds), i.e:
+/* Protocol description format
+ *
+ * {
+ *    Pulse length,
+ *
+ *    PreambleFactor,
+ *    Preamble {high,low},
+ *
+ *    HeaderFactor,
+ *    Header {high,low},
+ *
+ *    "0" bit {high,low},
+ *    "1" bit {high,low},
+ *
+ *    Inverted Signal,
+ *    Guard time
+ * }
+ *
+ * Pulse length: pulse duration (Te) in microseconds,
+ *               for example 350
+ * PreambleFactor: Number of high and low states to send
+ *                 (One pulse = 2 states, in orther words, number of pulses is
+ *                 ceil(PreambleFactor/2).)
+ * Preamble: Pulse shape which defines a preamble bit.
+ *           Sent ceil(PreambleFactor/2) times.
+ *           For example, {1, 2} with factor 3 would send
+ *      _    _
+ *     | |__| |__         (each horizontal bar has a duration of Te,
+ *                         vertical bars are ignored)
+ * HeaderFactor: Number of times to send the header pulse.
+ * Header: Pulse shape which defines a header (or "sync"/"clock") pulse.
+ *           {1, 31} means one pulse of duration 1 Te high and 31 Te low
  *      _
  *     | |_______________________________ (don't count the vertical bars)
- * "0" bit: waveform for a data bit of value "0", {1, 3} means 1 high pulse
- *     and 3 low pulses, total length (1+3)*pulselength, i.e:
+ *
+ * "0" bit: pulse shape defining a data bit, which is a logical "0"
+ *          {1, 3} means 1 pulse duration Te high level and 3 low
  *      _
  *     | |___
- * "1" bit: waveform for a data bit of value "1", e.g. {3,1}:
+ *
+ * "1" bit: pulse shape that defines the data bit, which is a logical "1"
+ *          {3, 1} means 3 pulses with a duration of Te high level and 1 low
  *      ___
  *     |   |_
  *
- * These are combined to form Tri-State bits when sending or receiving codes.
+ * (note: to form the state bit Z (Tri-State bit), two codes are combined)
+ *
+ * Inverted Signal: Signal inversion - if true the signal is inverted
+ *                  replacing high to low in a transmitted / received packet
+ * Guard time: Separation time between two retries. It will be followed by the
+ *             next preamble of the next packet. In number of Te.
+ *             e.g. 39 pulses of duration Te low level
  */
-#ifdef ESP8266
-static const RCSwitch::Protocol proto[] = {
+
+#if defined(ESP8266) || defined(ESP32)
+static const VAR_ISR_ATTR RCSwitch::Protocol proto[] = {
 #else
 static const RCSwitch::Protocol PROGMEM proto[] = {
 #endif
-  { 350, {  1, 31 }, {  1,  3 }, {  3,  1 }, false },    // protocol 1
-  { 650, {  1, 10 }, {  1,  2 }, {  2,  1 }, false },    // protocol 2
-  { 100, { 30, 71 }, {  4, 11 }, {  9,  6 }, false },    // protocol 3
-  { 380, {  1,  6 }, {  1,  3 }, {  3,  1 }, false },    // protocol 4
-  { 500, {  6, 14 }, {  1,  2 }, {  2,  1 }, false },    // protocol 5
-  { 450, { 23,  1 }, {  1,  2 }, {  2,  1 }, true },     // protocol 6 (HT6P20B)
-  { 320, { 36,  1 }, {  1,  2 }, {  2,  1 }, true },     // protocol 7 (Came) Holtek HT-12E
-  { 700, { 36,  1 }, {  1,  2 }, {  2,  1 }, true },     // protocol 8 (Nice) Holtek HT-12E
-  { 299, { 74, 1 }, { 1, 2 }, { 2, 1 }, true },          // protocol 9 CAME
-  { 150, { 34,  3 }, {  1,  3 }, {  3,  1 }, false },    // protocol 10 (AC114)
-  { 360, { 13,  4 }, {  1,  2 }, {  2,  1 }, false },    // protocol 11 (DC250)
-  { 270, { 1, 36 }, { 1, 2 }, { 2, 1 }, true },          // protocol 12 REMOCON-555
-  { 150, {  2, 62 }, {  1,  6 }, {  6,  1 }, false }     // protocol 13 (HS2303-PT, i. e. used in AUKEY Remote)
+  { 350,  0, { 0, 0 }, 1, {  1, 31 }, { 1,  3 }, { 3, 1 }, false,  0 },  // 01 (Princeton, PT-2240)
+  { 650,  0, { 0, 0 }, 1, {  1, 10 }, { 1,  2 }, { 2, 1 }, false,  0 },  // 02
+  { 100,  0, { 0, 0 }, 1, { 30, 71 }, { 4, 11 }, { 9, 6 }, false,  0 },  // 03
+  { 380,  0, { 0, 0 }, 1, {  1,  6 }, { 1,  3 }, { 3, 1 }, false,  0 },  // 04
+  { 500,  0, { 0, 0 }, 1, {  6, 14 }, { 1,  2 }, { 2, 1 }, false,  0 },  // 05
+  { 450,  0, { 0, 0 }, 1, { 23,  1 }, { 1,  2 }, { 2, 1 }, true,   0 },  // 06 (HT6P20B)
+  { 150,  0, { 0, 0 }, 1, {  2, 62 }, { 1,  6 }, { 6, 1 }, false,  0 },  // 07 (HS2303-PT, i. e. used in AUKEY Remote)
+  { 320,  0, { 0, 0 }, 1, { 36,  1 }, { 1,  2 }, { 2, 1 }, true,   0 },  // 08 (Came 12bit, HT12E)
+  { 700,  0, { 0, 0 }, 1, { 32,  1 }, { 1,  2 }, { 2, 1 }, true,   0 },  // 09 (Nice_Flo 12bit)
+  { 420,  0, { 0, 0 }, 1, { 60,  6 }, { 1,  2 }, { 2, 1 }, true,   0 },  // 10 (V2 phoenix)
+  { 500,  2, { 3, 3 }, 0, {  0,  0 }, { 1,  2 }, { 2, 1 }, false, 37 },  // 11 (Nice_FloR-S 52bit)
+  { 400, 23, { 1, 1 }, 1, {  0,  9 }, { 2,  1 }, { 1, 2 }, false, 39 },  // 12 (Keeloq 64/66)
+  { 300,  6, { 2, 2 }, 3, {  8,  3 }, { 2,  2 }, { 3, 3 }, false,  0 },  // 13 test (CFM)
+  { 250, 12, { 4, 4 }, 0, {  0,  0 }, { 1,  1 }, { 2, 2 }, false,  0 },  // 14 test (StarLine)
+  { 500,  0, { 0, 0 }, 0, { 100, 1 }, { 1,  2 }, { 2, 1 }, false, 35 },  // 15
+
+  { 361,  0, { 0, 0 }, 1, {  52,  1 }, { 1,  3 }, { 3, 1 }, true,   0 }, // 16 (Einhell)
+  { 500,  0, { 0, 0 }, 1, {   1, 23 }, { 1,  2 }, { 2, 1 }, false,  0 }, // 17 (InterTechno PAR-1000)
+  { 180,  0, { 0, 0 }, 1, {   1, 15 }, { 1,  1 }, { 1, 8 }, false,  0 }, // 18 (Intertechno ITT-1500)
+  { 350,  0, { 0, 0 }, 1, {   1,  2 }, { 0,  2 }, { 3, 2 }, false,  0 }, // 19 (Murcury)
+  { 150,  0, { 0, 0 }, 1, {  34,  3 }, { 1,  3 }, { 3, 1 }, false,  0 }, // 20 (AC114)
+  { 360,  0, { 0, 0 }, 1, {  13,  4 }, { 1,  2 }, { 2, 1 }, false,  0 }, // 21 (DC250)
+  { 650,  0, { 0, 0 }, 1, {   1, 10 }, { 1,  2 }, { 2, 1 }, true,   0 }, // 22 (Mandolyn/Lidl TR-502MSV/RC-402/RC-402DX)
+  { 641,  0, { 0, 0 }, 1, { 115,  1 }, { 1,  2 }, { 2, 1 }, true,   0 }, // 23 (Lidl TR-502MSV/RC-402 - Flavien)
+  { 620,  0, { 0, 0 }, 1, {   0, 64 }, { 0,  1 }, { 1, 0 }, false,  0 }, // 24 (Lidl TR-502MSV/RC701)
+  { 560,  0, { 0, 0 }, 1, {  16,  8 }, { 1,  1 }, { 1, 3 }, false,  0 }, // 25 (NEC)
+  { 385,  0, { 0, 0 }, 1, {   1, 17 }, { 1,  2 }, { 2, 1 }, false,  0 }, // 26 (Arlec RC210)
+  { 188,  0, { 0, 0 }, 1, {   1, 31 }, { 1,  3 }, { 3, 1 }, false,  0 }, // 27 (Zap, FHT-7901)
+
+  { 700,  1, { 0, 1 }, 1, { 116,  0 }, { 1,  2 }, { 2, 1 }, true,   0 }, // 28 (Quigg GT-7000) from @Tho85 https://github.com/sui77/rc-switch/pull/115
+  { 220,  0, { 0, 0 }, 1, {   1, 46 }, { 1,  6 }, { 1, 1 }, false,  2 }, // 29 (NEXA)
+  { 260,  0, { 0, 0 }, 1, {   1,  8 }, { 1,  4 }, { 4, 1 }, true,   0 },  // 30 (Anima)
+
+  { 400,  0, { 0, 0 }, 1, {   1,  1 }, { 1,  2 }, { 2, 1 }, false, 43 },  // 31 (Mertik Maxitrol G6R-H4T1)
+  { 365,  0, { 0, 0 }, 1, {  18,  1 }, { 3,  1 }, { 1, 3 }, true,   0 },  // 32 (1ByOne Doorbell) from @Fatbeard https://github.com/sui77/rc-switch/pull/277
+  { 340,  0, { 0, 0 }, 1, {  14,  4 }, { 1,  2 }, { 2, 1 }, false,  0 },  // 33 (Dooya Control DC2708L)
+  { 120,  0, { 0, 0 }, 1, {   1, 28 }, { 1,  3 }, { 3, 1 }, false,  0 },  // 34 DIGOO SD10 - so as to use this protocol RCSWITCH_SEPARATION_LIMIT must be set to 2600
+  { 20,   0, { 0, 0 }, 1, { 239, 78 }, {20, 35 }, {35, 20}, false, 10000},// 35 Dooya 5-Channel blinds remote DC1603
+  { 250,  0, { 0, 0 }, 1, {  18,  6 }, { 1,  3 }, { 3, 1 }, false,  0 },   // 36 Dooya remote DC2700AC for Dooya DT82TV curtains motor
+  { 200,  0, { 0, 0 }, 0, {   0,  0 }, { 1,  3 }, { 3, 1} , false, 20},	  // 37 DEWENWILS Power Strip
+  
+  { 500,  0, { 0, 0 }, 1, {   0,  7 }, { 1,  2 }, { 1, 4},  false,  0 }, // 38 (Nexus weather, 36 bit)
+  { 20,  16, { 14, 30 }, 1, { 510,  30 }, { 14,  30 }, { 30, 14 }, false,  230 }  // 39 (Louvolite) with premable
 };
 
 enum {
@@ -94,37 +165,32 @@ enum {
 };
 
 #if not defined( RCSwitchDisableReceiving )
-volatile unsigned long RCSwitch::nReceivedValue = 0;
+volatile unsigned long long RCSwitch::nReceivedValue = 0;
+volatile unsigned long long RCSwitch::nReceiveProtocolMask;
 volatile unsigned int RCSwitch::nReceivedBitlength = 0;
 volatile unsigned int RCSwitch::nReceivedDelay = 0;
 volatile unsigned int RCSwitch::nReceivedProtocol = 0;
-bool RCSwitch::nReceivedInverted = false;
-unsigned int RCSwitch::nReceivedLevelInFirstTiming = 0;
 int RCSwitch::nReceiveTolerance = 60;
-const unsigned int RCSwitch::nSeparationLimit = 2200;
-// separationLimit: minimum microseconds the first long part of the sync bit lasts.
-// set to 110% the longest bit duration known so far.
-// protocol 2: (650 * (1 + 2))=1950 ... x 110% ... ~ 2200
-// with this limit, in protocols 5 and 6, the high part of the sync bit will be recognized
-// as timing 0 which causes problems in timing 1 and in decoding interpretation
-
-unsigned int RCSwitch::firstperiodlevel;
+const unsigned int RCSwitch::nSeparationLimit = RCSWITCH_SEPARATION_LIMIT;
 unsigned int RCSwitch::timings[RCSWITCH_MAX_CHANGES];
-
-int RCSwitch::nStaticReceiverPin; // needed because nReceiverInterrupt (receiver pin) can not be read from handleInterrupt because it is static
+unsigned int RCSwitch::buftimings[4];
 #endif
 
 RCSwitch::RCSwitch() {
   this->nTransmitterPin = -1;
-  this->setRepeatTransmit(10);
+  this->setRepeatTransmit(5);
   this->setProtocol(1);
   #if not defined( RCSwitchDisableReceiving )
   this->nReceiverInterrupt = -1;
   this->setReceiveTolerance(60);
   RCSwitch::nReceivedValue = 0;
+  RCSwitch::nReceiveProtocolMask = (1ULL << numProto)-1;  //pow(2,numProto)-1;
   #endif
 }
 
+uint8_t RCSwitch::getNumProtos() {
+  return numProto;
+}
 /**
   * Sets the protocol to send.
   */
@@ -139,7 +205,7 @@ void RCSwitch::setProtocol(int nProtocol) {
   if (nProtocol < 1 || nProtocol > numProto) {
     nProtocol = 1;  // TODO: trigger an error, e.g. "bad protocol" ???
   }
-#ifdef ESP8266
+#if defined(ESP8266) || defined(ESP32)
   this->protocol = proto[nProtocol-1];
 #else
   memcpy_P(&this->protocol, &proto[nProtocol-1], sizeof(Protocol));
@@ -176,8 +242,12 @@ void RCSwitch::setRepeatTransmit(int nRepeatTransmit) {
 void RCSwitch::setReceiveTolerance(int nPercent) {
   RCSwitch::nReceiveTolerance = nPercent;
 }
+
+void RCSwitch::setReceiveProtocolMask(unsigned long long mask) {
+  RCSwitch::nReceiveProtocolMask = mask;
+}
 #endif
-  
+
 
 /**
  * Enable transmissions
@@ -380,7 +450,7 @@ char* RCSwitch::getCodeWordC(char sFamily, int nGroup, int nDevice, bool bStatus
   if ( nFamily < 0 || nFamily > 15 || nGroup < 1 || nGroup > 4 || nDevice < 1 || nDevice > 4) {
     return 0;
   }
-  
+
   // encode the family into four bits
   sReturn[nReturnPos++] = (nFamily & 1) ? 'F' : '0';
   sReturn[nReturnPos++] = (nFamily & 2) ? 'F' : '0';
@@ -416,7 +486,7 @@ char* RCSwitch::getCodeWordC(char sFamily, int nGroup, int nDevice, bool bStatus
  *
  * Source: http://www.the-intruder.net/funksteckdosen-von-rev-uber-arduino-ansteuern/
  *
- * @param sGroup        Name of the switch group (A..D, resp. a..d) 
+ * @param sGroup        Name of the switch group (A..D, resp. a..d)
  * @param nDevice       Number of the switch itself (1..3)
  * @param bStatus       Whether to switch on (true) or off (false)
  *
@@ -456,7 +526,7 @@ char* RCSwitch::getCodeWordD(char sGroup, int nDevice, bool bStatus) {
  */
 void RCSwitch::sendTriState(const char* sCodeWord) {
   // turn the tristate code word into the corresponding bit pattern, then send it
-  unsigned long code = 0;
+  unsigned long long code = 0;
   unsigned int length = 0;
   for (const char* p = sCodeWord; *p; p++) {
     code <<= 2L;
@@ -466,11 +536,11 @@ void RCSwitch::sendTriState(const char* sCodeWord) {
         break;
       case 'F':
         // bit pattern 01
-        code |= 1L;
+        code |= 1ULL;
         break;
       case '1':
         // bit pattern 11
-        code |= 3L;
+        code |= 3ULL;
         break;
     }
     length += 2;
@@ -479,16 +549,36 @@ void RCSwitch::sendTriState(const char* sCodeWord) {
 }
 
 /**
+ * @param duration   no. of microseconds to delay
+ */
+static inline void safeDelayMicroseconds(unsigned long duration) {
+#if defined(ESP8266) || defined(ESP32)
+  if (duration > 10000) {
+    // if delay > 10 milliseconds, use yield() to avoid wdt reset
+    unsigned long start = micros();
+    while ((micros() - start) < duration) {
+      yield();
+    }
+  }
+  else {
+    delayMicroseconds(duration);
+  }
+#else
+  delayMicroseconds(duration);
+#endif
+}
+
+/**
  * @param sCodeWord   a binary code word consisting of the letter 0, 1
  */
 void RCSwitch::send(const char* sCodeWord) {
   // turn the tristate code word into the corresponding bit pattern, then send it
-  unsigned long code = 0;
+  unsigned long long code = 0;
   unsigned int length = 0;
   for (const char* p = sCodeWord; *p; p++) {
-    code <<= 1L;
+    code <<= 1ULL;
     if (*p != '0')
-      code |= 1L;
+      code |= 1ULL;
     length++;
   }
   this->send(code, length);
@@ -499,7 +589,7 @@ void RCSwitch::send(const char* sCodeWord) {
  * bits are sent from MSB to LSB, i.e., first the bit at position length-1,
  * then the bit at position length-2, and so on, till finally the bit at position 0.
  */
-void RCSwitch::send(unsigned long code, unsigned int length) {
+void RCSwitch::send(uint64_t code, unsigned int length) {
   if (this->nTransmitterPin == -1)
     return;
 
@@ -511,15 +601,45 @@ void RCSwitch::send(unsigned long code, unsigned int length) {
   }
 #endif
 
+  // repeat sending the packet nRepeatTransmit times
   for (int nRepeat = 0; nRepeat < nRepeatTransmit; nRepeat++) {
-    for (int i = length-1; i >= 0; i--) {
-      if (code & (1L << i))
+    // send the preamble
+    for (int i = 0; i < ((protocol.PreambleFactor / 2) + (protocol.PreambleFactor %2 )); i++) {
+       this->transmit({protocol.Preamble.high, protocol.Preamble.low});
+    }
+    // send the header
+    if (protocol.HeaderFactor > 0) {
+      for (int i = 0; i < protocol.HeaderFactor; i++) {
+        this->transmit(protocol.Header);
+      }
+    }
+    // send the code
+    for (int i = length - 1; i >= 0; i--) {
+      if (code & (1ULL << i))
         this->transmit(protocol.one);
       else
         this->transmit(protocol.zero);
     }
-    this->transmit(protocol.syncFactor);
+    // for kilok, there should be a duration of 66, and 64 significant data codes are stored
+    // send two more bits for even count
+    if (length == 64) {
+      if (nRepeat == 0) {
+        this->transmit(protocol.zero);
+        this->transmit(protocol.zero);
+      } else {
+        this->transmit(protocol.one);
+        this->transmit(protocol.one);
+      }
+     }
+    // Set the guard Time
+    if (protocol.Guard > 0) {
+      digitalWrite(this->nTransmitterPin, LOW);
+      safeDelayMicroseconds(this->protocol.pulseLength * protocol.Guard);
+    }
   }
+
+  // Disable transmit after sending (i.e., for inverted protocols)
+  digitalWrite(this->nTransmitterPin, LOW);
 
 #if not defined( RCSwitchDisableReceiving )
   // enable receiver again if we just disabled it
@@ -535,11 +655,15 @@ void RCSwitch::send(unsigned long code, unsigned int length) {
 void RCSwitch::transmit(HighLow pulses) {
   uint8_t firstLogicLevel = (this->protocol.invertedSignal) ? LOW : HIGH;
   uint8_t secondLogicLevel = (this->protocol.invertedSignal) ? HIGH : LOW;
-  
-  digitalWrite(this->nTransmitterPin, firstLogicLevel);
-  delayMicroseconds( this->protocol.pulseLength * pulses.high);
-  digitalWrite(this->nTransmitterPin, secondLogicLevel);
-  delayMicroseconds( this->protocol.pulseLength * pulses.low);
+
+  if (pulses.high > 0) {
+    digitalWrite(this->nTransmitterPin, firstLogicLevel);
+    delayMicroseconds( this->protocol.pulseLength * pulses.high);
+  }
+  if (pulses.low > 0) {
+    digitalWrite(this->nTransmitterPin, secondLogicLevel);
+    delayMicroseconds( this->protocol.pulseLength * pulses.low);
+  }
 }
 
 
@@ -548,20 +672,7 @@ void RCSwitch::transmit(HighLow pulses) {
  * Enable receiving data
  */
 void RCSwitch::enableReceive(int interrupt) {
-#ifdef RaspberryPi
-  int receiverpin = interrupt;
-#else
-  // learn which digital pin corresponds to that interrupt
-  int receiverpin = -1;
-  for(int i = 0; i < 40; i++) {
-    if (digitalPinToInterrupt(i) == interrupt) {
-      receiverpin = i;
-      break;
-    }
-  }
-#endif
   this->nReceiverInterrupt = interrupt;
-  RCSwitch::nStaticReceiverPin = receiverpin;
   this->enableReceive();
 }
 
@@ -595,7 +706,7 @@ void RCSwitch::resetAvailable() {
   RCSwitch::nReceivedValue = 0;
 }
 
-unsigned long RCSwitch::getReceivedValue() {
+unsigned long long RCSwitch::getReceivedValue() {
   return RCSwitch::nReceivedValue;
 }
 
@@ -615,14 +726,6 @@ unsigned int* RCSwitch::getReceivedRawdata() {
   return RCSwitch::timings;
 }
 
-bool RCSwitch::getReceivedInverted() {
-  return RCSwitch::nReceivedInverted;
-}
-
-unsigned int RCSwitch::getReceivedLevelInFirstTiming() {
-  return RCSwitch::nReceivedLevelInFirstTiming;
-}
-
 /* helper function for the receiveProtocol method */
 static inline unsigned int diff(int A, int B) {
   return abs(A - B);
@@ -632,181 +735,48 @@ static inline unsigned int diff(int A, int B) {
  *
  */
 bool RECEIVE_ATTR RCSwitch::receiveProtocol(const int p, unsigned int changeCount) {
-
-    int finalp = 0; // no protocol recognized
-    unsigned int tmpfirstperiodlevel = RCSwitch::firstperiodlevel; // store it before it is overwritten
-
-    // ignore very short transmissions: no device sends them, so this must be noise
-    if (changeCount < 8) return false; // also ensure avoiding 0 division later
-
-    // changeCount is the number of stored durations
-    // timings positions span from 0 ... (changeCount - 1)
-    //
-    // non-inverted protocols with recorded...
-    // signals starting low: data bits timings from positions 1 ... (changeCount - 2)
-    //                       sync bit timings[changeCount - 1], timings[0]
-    // non-inverted protocols with recorded...
-    // signals starting high: data bits timings from positions 2 ... (changeCount - 1)
-    //                        sync bit timings[0], timings[1]
-    // This version takes into account both options by advancing 1 position for the later
-    //
-    // inverted protocols with recorded...
-    // signals starting low: data bits timings from positions 2 ... (changeCount - 1)
-    //                       sync bit timings[changeCount - 1], timings[0]
-    // inverted protocols with recorded...
-    // signals starting high: data bits timings from positions 1 ... (changeCount - 2)
-    //                        sync bit timings[0], timings[1]
-    // This version stores an alternate phase for decoding to cope with inverted protocols
-
-    unsigned int numberofdatabits = (changeCount - 2) / 2;
-
-    unsigned int dataduration = 0;
-    unsigned long squareddataduration = 0; // preparation for variance calculation
-    unsigned long code = 0;
-    unsigned int delay = 0; // all appearances of delay can be removed if, in future versions, it is decided to drop backwards compatibility
-
-    unsigned int alternatedataduration = 0;
-    unsigned long alternatesquareddataduration = 0; // preparation for variance calculation
-    unsigned long alternatecode = 0;
-    unsigned int alternatedelay = 0; // all appearances of delay can be removed if, in future versions, it is decided to drop backwards compatibility
-    
-    // calculate average of data bits duration
-    // calculate variance of data bits duration
-    // decode bit sequence,
-    // get delay as average of the shorter level timings (for backwards compatibility)
-    
-    // calculate for alternate positions (shifted one timing) as well
-
-    for (unsigned int i = 1; i < changeCount - 2; i += 2) {
-		
-        unsigned int thisbitDuration = RCSwitch::timings[i]+RCSwitch::timings[i + 1];
-        dataduration += thisbitDuration;
-        squareddataduration += (unsigned long)thisbitDuration*(unsigned long)thisbitDuration;
-
-        code <<= 1;
-        if (RCSwitch::timings[i] < RCSwitch::timings[i + 1]) {
-            // zero
-            // sum accumulated duration of shorter level timings
-            delay += RCSwitch::timings[i];
-            // all appearances of delay can be removed if dropping backwards compatibility
-        } else {
-            // one
-            code |= 1;
-            // sum accumulated duration of shorter level timings
-            delay += RCSwitch::timings[i + 1];
-            // all appearances of delay can be removed if dropping backwards compatibility
-        }
-        
-        // for inverted protocols - timings are shifted
-
-        unsigned int alternatebitDuration = RCSwitch::timings[i + 1]+RCSwitch::timings[i + 2];
-        alternatedataduration += alternatebitDuration;
-        alternatesquareddataduration += (unsigned long)alternatebitDuration*(unsigned long)alternatebitDuration;
-		
-        alternatecode <<= 1;
-        if (RCSwitch::timings[i + 1] < RCSwitch::timings[i + 2]) {
-            // zero
-            // sum accumulated duration of shorter level timings
-            alternatedelay += RCSwitch::timings[i + 1];
-            // all appearances of delay can be removed if dropping backwards compatibility
-        } else {
-            // one
-            alternatecode |= 1;
-            // sum accumulated duration of shorter level timings
-            alternatedelay += RCSwitch::timings[i + 2];
-            // all appearances of delay can be removed if dropping backwards compatibility
-        }
-    }
-
-    unsigned long variancebitduration = (squareddataduration - (unsigned long)dataduration*(unsigned long)dataduration/numberofdatabits)/(numberofdatabits-1);
-    unsigned long alternatevariancebitduration = (alternatesquareddataduration - (unsigned long)alternatedataduration*(unsigned long)alternatedataduration/numberofdatabits)/(numberofdatabits-1);
-    
-    // decide whether databits are represented by timings 1+2 or 2+3
-    bool databitsstartinone = variancebitduration < alternatevariancebitduration;
-    // Value true when NOT INVERTED
-    // PITFALL: occasionally (depending on the combination of bits) an inverted signal could be identified as direct signal
-
-    unsigned int averagebitduration = 0;
-    unsigned long squaredaveragebitduration = 0;
-    
-    if(databitsstartinone) {
-        averagebitduration = (int)(0.5 + ((double)dataduration)/numberofdatabits);
-        squaredaveragebitduration = (unsigned long)averagebitduration * (unsigned long)averagebitduration;
-    } else {
-        averagebitduration = (int)(0.5 + ((double)alternatedataduration)/numberofdatabits);
-        squaredaveragebitduration = (unsigned long)averagebitduration * (unsigned long)averagebitduration;
-        variancebitduration = alternatevariancebitduration;
-        code = alternatecode;
-        delay = alternatedelay;
-    }
-
-    // check whether all bits durations are similar, discard otherwise
-    // a coefficient of variation (standard deviation/average) threshold of 5% should be adequate
-    // that means rejecting if standard deviation > average * 5 / 100
-    // in the squared scale is variance > squared average * 25 / 10000
-
-    if (variancebitduration * 10000 > squaredaveragebitduration * 25 ) {
-        return false;
-    }
-
-    bool invertedprotocoldecoded = !((!databitsstartinone) ^ (tmpfirstperiodlevel == 0));
-
-    // get delay as average of the shorter level timings
-    delay = (int)(0.5 + ((double)delay)/numberofdatabits);
-
-    // ratio between long and short timing
-    unsigned int protocolratio = (unsigned int)(0.5 + ((double)(averagebitduration - delay)) / (double)delay);
-    
-    // improved pulselenght (delay) calculation
-    int normalizedpulselength = (int)(0.5 + (double)averagebitduration/(double)(protocolratio+1));
-
-    // store results
-
-    RCSwitch::nReceivedValue = code;
-    RCSwitch::nReceivedBitlength = numberofdatabits;
-    RCSwitch::nReceivedDelay = normalizedpulselength;
-
-    RCSwitch::nReceivedInverted = invertedprotocoldecoded;
-    RCSwitch::nReceivedLevelInFirstTiming = tmpfirstperiodlevel;
-
-
-    // for compatibility: check which protocol fits the data
-
-    // this can be completely removed from the receiver part of the library
-    // and let the programer check if the received code is from the protocol
-    // that was expected
-    const unsigned int delayTolerance = delay * RCSwitch::nReceiveTolerance / 100;
-
-    for(unsigned int i = 1; i <= numProto; i++) {
-
-#ifdef ESP8266
-        const Protocol &pro = proto[i-1];
+#if defined(ESP8266) || defined(ESP32)
+    const Protocol &pro = proto[p-1];
 #else
-        Protocol pro;
-        memcpy_P(&pro, &proto[i-1], sizeof(Protocol));
+    Protocol pro;
+    memcpy_P(&pro, &proto[p-1], sizeof(Protocol));
 #endif
 
-        if (invertedprotocoldecoded == pro.invertedSignal && // protocol inversion is correct AND
-            diff(delay, pro.pulseLength) < delayTolerance && // pulse length is correct AND
-            protocolratio == (int)(0.5 + (double)pro.one.high/(double)pro.one.low) && // long vs short ratio is correct AND
-            ( (databitsstartinone) ?
-            diff(RCSwitch::timings[0], pro.syncFactor.low * delay) < (pro.syncFactor.low * delayTolerance) // the sync timing is correct
-            :
-            diff(RCSwitch::timings[1], pro.syncFactor.low * delay) < (pro.syncFactor.low * delayTolerance) // the sync timing is correct
-            )  &&
-            ( (databitsstartinone) ?
-            diff(RCSwitch::timings[changeCount-1], pro.syncFactor.high * delay) < (pro.syncFactor.high * delayTolerance ) // the sync timing is correct
-            :
-            diff(RCSwitch::timings[0], pro.syncFactor.high * delay) < (pro.syncFactor.high * delayTolerance ) // the sync timing is correct
-            )
-            ) 
-            { // the sync timing is correct
-
-                finalp = i;
-		break;
-	}
+    unsigned long long code = 0;
+    unsigned int FirstTiming = 0;
+    if (pro.PreambleFactor > 0) {
+      FirstTiming = pro.PreambleFactor + 1;
     }
-    
+    unsigned int BeginData = 0;
+    if (pro.HeaderFactor > 0) {
+      BeginData = (pro.invertedSignal) ? (2) : (1);
+      // Header pulse count correction for more than one
+      if (pro.HeaderFactor > 1) {
+        BeginData += (pro.HeaderFactor - 1) * 2;
+      }
+    }
+    //Assuming the longer pulse length is the pulse captured in timings[FirstTiming]
+    // берем наибольшее значение из Header
+    const unsigned int syncLengthInPulses =  ((pro.Header.low) > (pro.Header.high)) ? (pro.Header.low) : (pro.Header.high);
+    // определяем длительность Te как длительность первого импульса header деленную на количество импульсов в нем
+    // или как длительность импульса preamble деленную на количество Te в нем
+    unsigned int sdelay = 0;
+    if (syncLengthInPulses > 0) {
+      sdelay = RCSwitch::timings[FirstTiming] / syncLengthInPulses;
+    } else if (pro.PreambleFactor > 0) {
+      sdelay = RCSwitch::timings[FirstTiming-2] / pro.PreambleFactor;
+    }
+    const unsigned int delay = sdelay;
+    // nReceiveTolerance = 60
+    // допустимое отклонение длительностей импульсов на 60 %
+    const unsigned int delayTolerance = delay * RCSwitch::nReceiveTolerance / 100;
+
+    // 0 - sync перед preamble или data
+    // BeginData - сдвиг на 1 или 2 от sync к preamble/data
+    // FirstTiming - сдвиг на preamble к header
+    // firstDataTiming первый импульс data
+    // bitChangeCount - количество импульсов в data
+
     /* For protocols that start low, the sync period looks like
      *               _________
      * _____________|         |XXXXXXXXXXXX|
@@ -824,52 +794,226 @@ bool RECEIVE_ATTR RCSwitch::receiveProtocol(const int p, unsigned int changeCoun
      *
      * The 2nd saved duration starts the data
      */
+    // если invertedSignal=false, то сигнал начинается с 1 элемента массива (высокий уровень)
+    // если invertedSignal=true, то сигнал начинается со 2 элемента массива (низкий уровень)
+    // добавляем поправку на Преамбулу и Хедер
+    const unsigned int firstDataTiming = BeginData + FirstTiming;
+    unsigned int bitChangeCount = changeCount - firstDataTiming - 1 + pro.invertedSignal;
+    if (bitChangeCount > 128) {
+      bitChangeCount = 128;
+    }
 
-    RCSwitch::nReceivedProtocol = finalp; // will be 0 if the code is recognized but it is of an unknown protocol
-    return true;
+    for (unsigned int i = firstDataTiming; i < firstDataTiming + bitChangeCount; i += 2) {
+        code <<= 1;
+        if (diff(RCSwitch::timings[i], delay * pro.zero.high) < delayTolerance &&
+            diff(RCSwitch::timings[i + 1], delay * pro.zero.low) < delayTolerance) {
+            // zero
+        } else if (diff(RCSwitch::timings[i], delay * pro.one.high) < delayTolerance &&
+                   diff(RCSwitch::timings[i + 1], delay * pro.one.low) < delayTolerance) {
+            // one
+            code |= 1;
+        } else {
+            // Failed
+            return false;
+        }
+    }
 
+    if (bitChangeCount > 14) {    // ignore very short transmissions: no device sends them, so this must be noise
+        RCSwitch::nReceivedValue = code;
+        RCSwitch::nReceivedBitlength = bitChangeCount / 2;
+        RCSwitch::nReceivedDelay = delay;
+        RCSwitch::nReceivedProtocol = p;
+        return true;
+    }
+
+    return false;
 }
 
 void RECEIVE_ATTR RCSwitch::handleInterrupt() {
 
   static unsigned int changeCount = 0;
   static unsigned long lastTime = 0;
-  static unsigned int repeatCount = 0;
+  static byte repeatCount = 0;
 
   const long time = micros();
   const unsigned int duration = time - lastTime;
 
-  if (duration > RCSwitch::nSeparationLimit & changeCount != 1 ) {
+  RCSwitch::buftimings[3]=RCSwitch::buftimings[2];
+  RCSwitch::buftimings[2]=RCSwitch::buftimings[1];
+  RCSwitch::buftimings[1]=RCSwitch::buftimings[0];
+  RCSwitch::buftimings[0]=duration;
+
+  if (duration > RCSwitch::nSeparationLimit ||
+      changeCount == 156 ||
+      (diff(RCSwitch::buftimings[3], RCSwitch::buftimings[2]) < 50 &&
+        diff(RCSwitch::buftimings[2], RCSwitch::buftimings[1]) < 50 &&
+        changeCount > 25)) {
+    // принят длинный импульс продолжительностью более nSeparationLimit (4300)
     // A long stretch without signal level change occurred. This could
     // be the gap between two transmission.
-    // It allows a second long duration to be stored
-    // to accomodate for protocols with long high-level (first part) sync duration
-    if (diff(duration, RCSwitch::timings[0]) < 200) {
+    if (diff(duration, RCSwitch::timings[0]) < 400 ||
+        changeCount == 156 ||
+        (diff(RCSwitch::buftimings[3], RCSwitch::timings[1]) < 50 &&
+          diff(RCSwitch::buftimings[2], RCSwitch::timings[2]) < 50 &&
+          diff(RCSwitch::buftimings[1], RCSwitch::timings[3]) < 50 &&
+          changeCount > 25)) {
+      // если его длительность отличается от первого импульса,
+      // который приняли раньше, менее чем на +-200 (исходно 200)
+      // то считаем это повторным пакетом и игнорируем его
       // This long signal is close in length to the long signal which
       // started the previously recorded timings; this suggests that
       // it may indeed by a a gap between two transmissions (we assume
       // here that a sender will send the signal multiple times,
       // with roughly the same gap between them).
+
+      // количество повторных пакетов
       repeatCount++;
-      if (repeatCount == 2) {
-        receiveProtocol(1,changeCount);
+      // при приеме второго повторного начинаем анализ принятого первым
+      if (repeatCount == 1) {
+        unsigned long long thismask = 1;
+        for(unsigned int i = 1; i <= numProto; i++) {
+          if (RCSwitch::nReceiveProtocolMask & thismask) {
+            if (receiveProtocol(i, changeCount)) {
+              // receive succeeded for protocol i
+              break;
+            }
+          }
+          thismask <<= 1;
+        }
+        // очищаем количество повторных пакетов
         repeatCount = 0;
       }
     }
+    // дительность отличается более чем на +-200 от первого
+    // принятого ранее, очищаем счетчик для приема нового пакета
     changeCount = 0;
-    // store the opposite level, because the time recorded is the one of the previous level
-    RCSwitch::firstperiodlevel = ! digitalRead(RCSwitch::nStaticReceiverPin);
+    if (diff(RCSwitch::buftimings[3], RCSwitch::buftimings[2]) < 50 &&
+        diff(RCSwitch::buftimings[2], RCSwitch::buftimings[1]) < 50) {
+      RCSwitch::timings[1]=RCSwitch::buftimings[3];
+      RCSwitch::timings[2]=RCSwitch::buftimings[2];
+      RCSwitch::timings[3]=RCSwitch::buftimings[1];
+      changeCount = 4;
+    }
   }
- 
+
   // detect overflow
   if (changeCount >= RCSWITCH_MAX_CHANGES) {
     changeCount = 0;
-    // store the opposite level, because the time recorded is the one of the previous level
-    RCSwitch::firstperiodlevel = ! digitalRead(RCSwitch::nStaticReceiverPin);
     repeatCount = 0;
   }
 
-  RCSwitch::timings[changeCount++] = duration;
-  lastTime = time;  
+  // заносим в массив длительность очередного принятого импульса
+  if (changeCount > 0 && duration < 100) { // игнорируем шумовые всплески менее 100 мкс
+    RCSwitch::timings[changeCount-1] += duration;
+  } else {
+    RCSwitch::timings[changeCount++] = duration;
+  }
+  lastTime = time;
 }
 #endif
+
+/**
+  * Initilize Keeloq
+  */
+Keeloq::Keeloq() {
+  _keyHigh = 0;
+  _keyLow = 0;
+}
+
+/**
+  * Set Keeloq 64 bit cypher key
+  */
+void Keeloq::SetKey(unsigned long keyHigh, unsigned long keyLow) {
+  _keyHigh = keyHigh;
+  _keyLow = keyLow;
+}
+
+/**
+  * Get Key data
+  */
+unsigned long Keeloq::GetKey(bool HighLow) {
+  if (HighLow) {
+    return _keyHigh;
+  }
+  return _keyLow;
+}
+
+/**
+  * Encrypt Keeloq 32 bit data
+  */
+unsigned long Keeloq::Encrypt(unsigned long data) {
+  unsigned long x = data;
+  unsigned long r;
+  int keyBitNo, index;
+  unsigned long keyBitVal,bitVal;
+
+  for (r = 0; r < 528; r++) {
+    keyBitNo = r & 63;
+    if (keyBitNo < 32) {
+      keyBitVal = bitRead(_keyLow,keyBitNo);
+    } else {
+      keyBitVal = bitRead(_keyHigh, keyBitNo - 32);
+    }
+    index = 1 * bitRead(x, 1) + 2 * bitRead(x, 9) + 4 * bitRead(x, 20) + 8 * bitRead(x, 26) + 16 * bitRead(x, 31);
+    bitVal = bitRead(x, 0) ^ bitRead(x, 16) ^ bitRead(KeeLoq_NLF, index) ^ keyBitVal;
+    x = (x >> 1) ^ bitVal << 31;
+  }
+  return x;
+}
+
+/**
+  * Decrypt Keeloq 32 bit data
+  */
+unsigned long Keeloq::Decrypt(unsigned long data) {
+  unsigned long x = data;
+  unsigned long r;
+  int keyBitNo, index;
+  unsigned long keyBitVal,bitVal;
+
+  for (r = 0; r < 528; r++) {
+    keyBitNo = (15-r) & 63;
+    if(keyBitNo < 32) {
+      keyBitVal = bitRead(_keyLow,keyBitNo);
+    } else {
+      keyBitVal = bitRead(_keyHigh, keyBitNo - 32);
+    }
+    index = 1 * bitRead(x, 0) + 2 * bitRead(x, 8) + 4 * bitRead(x, 19) + 8 * bitRead(x, 25) + 16 * bitRead(x, 30);
+    bitVal = bitRead(x, 31) ^ bitRead(x, 15) ^ bitRead(KeeLoq_NLF, index) ^ keyBitVal;
+    x = (x << 1) ^ bitVal;
+  }
+  return x;
+}
+
+/**
+  * Set Normal Learning Keeloq key
+  */
+void Keeloq::NormLearn(unsigned long FixSN) {
+  unsigned long tmpFixSN;
+  // заготовки для формируемого ключа
+  unsigned long NewkeyHigh;
+  unsigned long NewkeyLow;
+
+  tmpFixSN = FixSN & 0x0FFFFFFF;
+  tmpFixSN |= 0x20000000;
+  NewkeyLow = Decrypt(tmpFixSN);
+  tmpFixSN = FixSN & 0x0FFFFFFF;
+  tmpFixSN |= 0x60000000;
+  NewkeyHigh = Decrypt(tmpFixSN);
+  _keyHigh = NewkeyHigh;
+  _keyLow = NewkeyLow;
+}
+
+/**
+  * Reflect a 32 bit package
+  */
+unsigned long Keeloq::ReflectPack(unsigned long PackSrc) {
+  unsigned long long PackOut = 0;
+  for (byte i = 0; i < 32; i++) {
+    PackOut = PackOut << 1;
+    if (PackSrc & 1) {
+      PackOut = PackOut | 1; 
+    }
+    PackSrc = PackSrc >> 1;
+  }
+  return PackOut;
+}
