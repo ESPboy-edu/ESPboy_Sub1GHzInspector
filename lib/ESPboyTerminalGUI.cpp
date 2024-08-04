@@ -164,7 +164,7 @@ void ESPboyTerminalGUI::doScroll(){
   #endif
   toggleDisplayMode(1);
  // while (!(keyState & GUI_PAD_ESC)){
-    delay(1);
+    ESP.wdtFeed();
     keyState = getKeys();
     if(keyState){
       if (keyState&GUI_PAD_RGT && keybParam.renderLine) {
@@ -197,6 +197,7 @@ void ESPboyTerminalGUI::printConsole(String bfrstr, uint16_t color, uint8_t ln, 
 
   uint16_t traskStr=0;
   for (uint8_t i = 0; i <= ((bfrstr.length()-1) / ((128-4)/GUI_FONT_WIDTH)); i++) {
+    ESP.wdtFeed();
     toprint = bfrstr.substring(traskStr);
     toprint = toprint.substring(0, (128-4)/GUI_FONT_WIDTH);
     traskStr += (128-4)/GUI_FONT_WIDTH;
@@ -247,6 +248,7 @@ void ESPboyTerminalGUI::drawConsole(uint8_t onlyLastLine) {
   startVectorToDraw = consoleStringsVector.size()-1-keybParam.renderLine;
   
   for (uint8_t i = 0; i< quantityLinesToDraw; i++) {
+    ESP.wdtFeed();
 #ifndef U8g2
     tft->setTextColor(consoleStringsVector[startVectorToDraw].consoleStringColor, TFT_BLACK);
     tft->drawString(consoleStringsVector[startVectorToDraw].consoleString, 3, offsetY);
@@ -266,7 +268,7 @@ uint8_t ESPboyTerminalGUI::getKeys() { return (~mcp->readGPIOAB() & 255); }
 
 uint32_t ESPboyTerminalGUI::waitKeyUnpressed() {
   uint32_t timerStamp = millis();
-  while (getKeys() && (millis() - timerStamp) < GUI_KEY_UNPRESSED_TIMEOUT) delay(1);
+  while (getKeys() && (millis() - timerStamp) < GUI_KEY_UNPRESSED_TIMEOUT) ESP.wdtFeed();;
   return (millis() - timerStamp);
 }
 
