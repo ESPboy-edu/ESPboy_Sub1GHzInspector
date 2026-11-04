@@ -120,13 +120,15 @@ uint16_t ESPboyMenuGUI::menuInit(const char** menuLinesF, uint16_t menuLineColor
       myESPboy->playTone(100,100);
     #endif
     
-    myESPboy->tft.drawRect(0, (menuList.menuCurrent+menuList.menuOffset)*MENU_SPACE_BETWEEN_LINES, 122, MENU_SPACE_BETWEEN_LINES, TFT_BLACK);
+    uint16_t screenY = (menuList.menuCurrent - menuList.menuOffset) * MENU_SPACE_BETWEEN_LINES;
+    
+    myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, TFT_BLACK);
     delay(50);
-    myESPboy->tft.drawRect(0, (menuList.menuCurrent+menuList.menuOffset)*MENU_SPACE_BETWEEN_LINES, 122, MENU_SPACE_BETWEEN_LINES, menuList.menuSelectionColor);
+    myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, menuList.menuSelectionColor);
     delay(50);
-    myESPboy->tft.drawRect(0, (menuList.menuCurrent+menuList.menuOffset)*MENU_SPACE_BETWEEN_LINES, 122, MENU_SPACE_BETWEEN_LINES, TFT_BLACK);
+    myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, TFT_BLACK);
     delay(50);
-    myESPboy->tft.drawRect(0, (menuList.menuCurrent+menuList.menuOffset)*MENU_SPACE_BETWEEN_LINES, 122, MENU_SPACE_BETWEEN_LINES, menuList.menuSelectionColor);
+    myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, menuList.menuSelectionColor);
     delay(200);
     
     myESPboy->tft.fillScreen(TFT_BLACK);

@@ -1,0 +1,9 @@
+cc1101_debug_service	KEYWORD1
+cc1101_debug	KEYWORD1
+debug		KEYWORD2
+setChsp		KEYWORD2
+setRxbw		KEYWORD2
+setDRate	KEYWORD2
+setDeviation	KEYWORD2
+save_slot	KEYWORD2
+load_slot	KEYWORD2

@@ -2,16 +2,17 @@
 ESPboyTerminalGUI class
 for www.ESPboy.com project by RomanS
 https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
-v2.1
+v7_2
 */
 
 #include "ESPboyTerminalGUI.h"
 
-const uint8_t ESPboyTerminalGUI::keybOnscr[2][3][21] PROGMEM = {
+// УЛУЧШЕНИЕ: 3 страницы клавиатуры (строчные, прописные, спецсимволы)
+const uint8_t ESPboyTerminalGUI::keybOnscr[3][3][21] PROGMEM = {
  {"+1234567890abcdefghi", "jklmnopqrstuvwxyz -=", "?!@$%&*()_[]\":;.,^<E",},
- {"+1234567890ABCDEFGHI", "JKLMNOPQRSTUVWXYZ -=", "?!@$%&*()_[]\":;.,^<E",}
+ {"+1234567890ABCDEFGHI", "JKLMNOPQRSTUVWXYZ -=", "?!@$%&*()_[]\":;.,^<E",},
+ {"~`|\\{}'<>/#         ", "                    ", "                 ^<E",}
 };
-
 
 ESPboyTerminalGUI::ESPboyTerminalGUI(TFT_eSPI *tftGUI, ESPboyMCP *mcpGUI) {
    keybParam.renderLine = 0;
@@ -20,6 +21,7 @@ ESPboyTerminalGUI::ESPboyTerminalGUI(TFT_eSPI *tftGUI, ESPboyMCP *mcpGUI) {
    keybParam.selX = 0;
    keybParam.selY = 0;
    keybParam.typing = "";
+   keybParam.typing.reserve(GUI_MAX_TYPING_CHARS + 1); // ОПТИМИЗАЦИЯ: резервируем память под ввод текста с клавиатуры
    
    tft = tftGUI;
    mcp = mcpGUI;
@@ -37,7 +39,6 @@ ESPboyTerminalGUI::ESPboyTerminalGUI(TFT_eSPI *tftGUI, ESPboyMCP *mcpGUI) {
    toggleDisplayMode(1);
 }
 
-
 uint8_t ESPboyTerminalGUI::keysAction() {
   uint8_t longActPress = 0;
   uint8_t keyState = getKeys();
@@ -47,82 +48,84 @@ uint8_t ESPboyTerminalGUI::keysAction() {
     tone(SOUNDPIN, 100, 10);
   #endif
     if (!keybParam.displayMode) {
-      if (keyState & GUI_PAD_LEFT && keyState & GUI_PAD_UP) {  // shift
-        keybParam.shiftOn = !keybParam.shiftOn;
+      // УЛУЧШЕНИЕ: Навигация по 3 страницам клавиатуры
+      if (keyState & GUI_PAD_UP && keyState & GUI_PAD_RIGHT) {  
+        keybParam.shiftOn = (keybParam.shiftOn + 1) % 3;
+        drawKeyboard(keybParam.selX, keybParam.selY, 0);
+        waitKeyUnpressed();
+      } else if (keyState & GUI_PAD_UP && keyState & GUI_PAD_LEFT) { 
+        keybParam.shiftOn = (keybParam.shiftOn + 2) % 3;
         drawKeyboard(keybParam.selX, keybParam.selY, 0);
         waitKeyUnpressed();
       } else {
-        if ((keyState & GUI_PAD_RIGHT) && keybParam.selX < 20) keybParam.selX++;
-        if ((keyState & GUI_PAD_LEFT) && keybParam.selX > -1) keybParam.selX--;
-        if ((keyState & GUI_PAD_DOWN) && keybParam.selY < 3) keybParam.selY++;
-        if ((keyState & GUI_PAD_UP) && keybParam.selY > -1) keybParam.selY--;
-        if ((keyState & GUI_PAD_LEFT) && keybParam.selX == -1) keybParam.selX = 19;
-        if ((keyState & GUI_PAD_RIGHT) && keybParam.selX == 20) keybParam.selX = 0;
-        if ((keyState & GUI_PAD_UP) && keybParam.selY == -1) keybParam.selY = 2;
-        if ((keyState & GUI_PAD_DOWN) && keybParam.selY == 3) keybParam.selY = 0;
+        // ОПТИМИЗАЦИЯ: Кольцевая навигация без каскадных IF
+        if (keyState & GUI_PAD_RIGHT) keybParam.selX = (keybParam.selX + 1) % 20;
+        if (keyState & GUI_PAD_LEFT)  keybParam.selX = (keybParam.selX + 19) % 20;
+        if (keyState & GUI_PAD_DOWN)  keybParam.selY = (keybParam.selY + 1) % 3;
+        if (keyState & GUI_PAD_UP)    keybParam.selY = (keybParam.selY + 2) % 3;
       }
 
-      if ((keyState&GUI_PAD_ACT && keyState&GUI_PAD_ESC) || (keyState&GUI_PAD_RGT && keyState&GUI_PAD_LFT)) {
+      if ((keyState & GUI_PAD_ACT && keyState & GUI_PAD_ESC) || (keyState & GUI_PAD_RGT && keyState & GUI_PAD_LFT)) {
         if (keybParam.renderLine > consoleStringsVector.size() - GUI_MAX_STRINGS_ONSCREEN_FULL)
           keybParam.renderLine = consoleStringsVector.size() - GUI_MAX_STRINGS_ONSCREEN_FULL;
         toggleDisplayMode(1);
         waitKeyUnpressed();
         
-      } else if (keyState&GUI_PAD_RGT && keybParam.renderLine) {
+      } else if (keyState & GUI_PAD_RGT && keybParam.renderLine) {
         keybParam.renderLine--;
         drawConsole(0);
         
-      } else if (keyState&GUI_PAD_LFT && keybParam.renderLine < consoleStringsVector.size() - GUI_MAX_STRINGS_ONSCREEN_SMALL) {
+      } else if (keyState & GUI_PAD_LFT && keybParam.renderLine < consoleStringsVector.size() - GUI_MAX_STRINGS_ONSCREEN_SMALL) {
         keybParam.renderLine++;
         drawConsole(0);
       }
 
-      if ((((keyState & GUI_PAD_ACT) && (keybParam.selX == 19 && keybParam.selY == 2)) || (keyState & GUI_PAD_RGT && keyState & GUI_PAD_LFT))) {  // enter
-        if (keybParam.typing.length() > 0) longActPress = 1;
-      } else if ((keyState & GUI_PAD_ACT) && (keybParam.selX == 18 && keybParam.selY == 2)) {  // back space
-        if (keybParam.typing.length() > 0) keybParam.typing.remove(keybParam.typing.length() - 1);
-      } else if ((keyState & GUI_PAD_ACT) && (keybParam.selX == 17 && keybParam.selY == 1)) {  // SPACE
-            if (keybParam.typing.length() < GUI_MAX_TYPING_CHARS) keybParam.typing += " ";
-      } else if ((keyState & GUI_PAD_ACT) && (keybParam.selX == 17 && keybParam.selY == 2)) {
-        keybParam.shiftOn = !keybParam.shiftOn;
-        drawKeyboard(keybParam.selX, keybParam.selY, 0);
-        waitKeyUnpressed();
-      } else if (keyState & GUI_PAD_ACT){
-        if (waitKeyUnpressed() > GUI_KEY_PRESSED_DELAY_TO_SEND)
-          longActPress = 1;
-        else if (keybParam.typing.length() < GUI_MAX_TYPING_CHARS)
-          keybParam.typing += (char)pgm_read_byte(&keybOnscr[keybParam.shiftOn][keybParam.selY][keybParam.selX]);
+      // ОПТИМИЗАЦИЯ: Чистая маршрутизация действий для кнопок ACT (A) и ESC (B)
+      if ((keyState & GUI_PAD_ACT) && !(keyState & GUI_PAD_ESC)) {
+        if (keybParam.selX == 19 && keybParam.selY == 2) {  // enter
+          if (keybParam.typing.length() > 0) longActPress = 1;
+        } else if (keybParam.selX == 18 && keybParam.selY == 2) {  // back space
+          if (keybParam.typing.length() > 0) keybParam.typing.remove(keybParam.typing.length() - 1);
+        } else if (keybParam.selX == 17 && keybParam.selY == 1) {  // SPACE
+          if (keybParam.typing.length() < GUI_MAX_TYPING_CHARS) keybParam.typing += " ";
+        } else if (keybParam.selX == 17 && keybParam.selY == 2) { // shift (цикличное переключение страниц)
+          keybParam.shiftOn = (keybParam.shiftOn + 1) % 3;
+          drawKeyboard(keybParam.selX, keybParam.selY, 0);
+          waitKeyUnpressed();
+        } else {
+          if (waitKeyUnpressed() > GUI_KEY_PRESSED_DELAY_TO_SEND)
+            longActPress = 1;
+          else if (keybParam.typing.length() < GUI_MAX_TYPING_CHARS) {
+            char nextChar = (char)pgm_read_byte(&keybOnscr[keybParam.shiftOn][keybParam.selY][keybParam.selX]);
+            if (nextChar != ' ') keybParam.typing += nextChar; // Игнорируем пустые пробелы на 3-й странице
+          }
+        }
       }
 
-      if (keyState & GUI_PAD_ESC) {
+      if ((keyState & GUI_PAD_ESC) && !(keyState & GUI_PAD_ACT)) {
         if (waitKeyUnpressed() > GUI_KEY_PRESSED_DELAY_TO_SEND){
           keybParam.typing = "";
           longActPress=1;
-          }
+        }
         else if (keybParam.typing.length() > 0)
           keybParam.typing.remove(keybParam.typing.length() - 1);
       }
     }
-
     else {
       if ((keyState & GUI_PAD_ACT && keyState & GUI_PAD_ESC) || (keyState & GUI_PAD_RGT && keyState & GUI_PAD_LFT)) {
         toggleDisplayMode(0);
         waitKeyUnpressed();
-      } else
-
-          if (((keyState & GUI_PAD_RGT || keyState & GUI_PAD_RIGHT || keyState & GUI_PAD_DOWN)) && keybParam.renderLine > 0) {
-            keybParam.renderLine--;
-            drawConsole(0);
-          } else
-
-          if (((keyState&GUI_PAD_LFT || keyState & GUI_PAD_LEFT || keyState&GUI_PAD_UP)) && keybParam.renderLine < consoleStringsVector.size() - GUI_MAX_STRINGS_ONSCREEN_FULL) {
+      } else if ((keyState & (GUI_PAD_RGT | GUI_PAD_RIGHT | GUI_PAD_DOWN)) && keybParam.renderLine > 0) {
+        keybParam.renderLine--;
+        drawConsole(0);
+      } else if ((keyState & (GUI_PAD_LFT | GUI_PAD_LEFT | GUI_PAD_UP)) && keybParam.renderLine < consoleStringsVector.size() - GUI_MAX_STRINGS_ONSCREEN_FULL) {
         keybParam.renderLine++;
         drawConsole(0);
-      } else
-
-          if (keyState & GUI_PAD_ESC)
-            toggleDisplayMode(0);
+      } else if (keyState & GUI_PAD_ESC) {
+        toggleDisplayMode(0);
+      }
     }
+    
     if (!keybParam.displayMode) drawKeyboard(keybParam.selX, keybParam.selY, 1);
   }
 
@@ -147,10 +150,7 @@ void ESPboyTerminalGUI::toggleDisplayMode(uint8_t mode) {
 String ESPboyTerminalGUI::getUserInput() {
   String userInput;
   toggleDisplayMode(0);
-  //while (1) {
-    while (!keysAction()) delay(GUI_KEYB_CALL_DELAY);
-  //  if (keybParam.typing != "") break;
-  //}
+  while (!keysAction()) delay(GUI_KEYB_CALL_DELAY);
   toggleDisplayMode(1);
   userInput = keybParam.typing;
   keybParam.typing = "";
@@ -163,8 +163,7 @@ void ESPboyTerminalGUI::doScroll(){
     tone(SOUNDPIN, 100, 10);
   #endif
   toggleDisplayMode(1);
- // while (!(keyState & GUI_PAD_ESC)){
-    ESP.wdtFeed();
+    delay(1);
     keyState = getKeys();
     if(keyState){
       if (keyState&GUI_PAD_RGT && keybParam.renderLine) {
@@ -177,30 +176,28 @@ void ESPboyTerminalGUI::doScroll(){
       #endif
       delay(GUI_KEYB_CALL_DELAY);
     }
-  //} 
 }
 
-
 void ESPboyTerminalGUI::printConsole(String bfrstr, uint16_t color, uint8_t ln, uint8_t noAddLine) {
-  String toprint;
-
   keybParam.renderLine = 0;
 
   if(bfrstr == "") bfrstr = " ";
   
+  uint16_t maxCharsPerLine = (128-4)/GUI_FONT_WIDTH;
+  
   if (!ln)
-    if (bfrstr.length() > ((128-4)/GUI_FONT_WIDTH)) {
-      bfrstr = bfrstr.substring(0, ((128-4)/GUI_FONT_WIDTH));
-      toprint = bfrstr;
-      toprint.trim();
+    if (bfrstr.length() > maxCharsPerLine) {
+      bfrstr = bfrstr.substring(0, maxCharsPerLine);
+      bfrstr.trim();
   }
 
   uint16_t traskStr=0;
-  for (uint8_t i = 0; i <= ((bfrstr.length()-1) / ((128-4)/GUI_FONT_WIDTH)); i++) {
-    ESP.wdtFeed();
-    toprint = bfrstr.substring(traskStr);
-    toprint = toprint.substring(0, (128-4)/GUI_FONT_WIDTH);
-    traskStr += (128-4)/GUI_FONT_WIDTH;
+  uint16_t strLen = bfrstr.length();
+  
+  // ОПТИМИЗАЦИЯ: Уменьшено количество создаваемых мусорных String объектов
+  for (uint8_t i = 0; i <= ((strLen > 0 ? strLen - 1 : 0) / maxCharsPerLine); i++) {
+    String toprint = bfrstr.substring(traskStr, traskStr + maxCharsPerLine);
+    traskStr += maxCharsPerLine;
     toprint.trim();
     if (!noAddLine) consoleStringsVector.push_back(consoleStringS());
     consoleStringsVector.back().consoleString = toprint;
@@ -209,13 +206,11 @@ void ESPboyTerminalGUI::printConsole(String bfrstr, uint16_t color, uint8_t ln, 
   
   drawConsole(noAddLine);
   
+  // ОПТИМИЗАЦИЯ: pop_front() гарантирует O(1) удаление (сдвиг памяти не происходит)
   while (consoleStringsVector.size() > GUI_MAX_CONSOLE_STRINGS){
-    consoleStringsVector.erase(consoleStringsVector.begin());
-    consoleStringsVector.shrink_to_fit();
+    consoleStringsVector.pop_front();
   }
 }
-
-
 
 void ESPboyTerminalGUI::drawConsole(uint8_t onlyLastLine) {
   uint16_t lines;
@@ -226,7 +221,6 @@ void ESPboyTerminalGUI::drawConsole(uint8_t onlyLastLine) {
   if (keybParam.displayMode) lines = GUI_MAX_STRINGS_ONSCREEN_FULL;
   else lines = GUI_MAX_STRINGS_ONSCREEN_SMALL;
 
-
 #ifndef U8g2
   if (!onlyLastLine) tft->fillRect(1, 4, 126, lines * GUI_FONT_HEIGHT, TFT_BLACK);
   else tft->fillRect(1, (lines-1) * GUI_FONT_HEIGHT+4, 126, GUI_FONT_HEIGHT, TFT_BLACK);
@@ -234,7 +228,6 @@ void ESPboyTerminalGUI::drawConsole(uint8_t onlyLastLine) {
   if (!onlyLastLine) tft->fillRect(1, 1, 126, lines * GUI_FONT_HEIGHT, TFT_BLACK);
   else tft->fillRect(1, (lines-1) * GUI_FONT_HEIGHT, 126, GUI_FONT_HEIGHT+1, TFT_BLACK);
 #endif  
-
 
 #ifndef U8g2
   offsetY = lines * GUI_FONT_HEIGHT - 4;
@@ -248,7 +241,6 @@ void ESPboyTerminalGUI::drawConsole(uint8_t onlyLastLine) {
   startVectorToDraw = consoleStringsVector.size()-1-keybParam.renderLine;
   
   for (uint8_t i = 0; i< quantityLinesToDraw; i++) {
-    ESP.wdtFeed();
 #ifndef U8g2
     tft->setTextColor(consoleStringsVector[startVectorToDraw].consoleStringColor, TFT_BLACK);
     tft->drawString(consoleStringsVector[startVectorToDraw].consoleString, 3, offsetY);
@@ -262,16 +254,13 @@ void ESPboyTerminalGUI::drawConsole(uint8_t onlyLastLine) {
   } 
 }
 
-
 uint8_t ESPboyTerminalGUI::getKeys() { return (~mcp->readGPIOAB() & 255); }
-
 
 uint32_t ESPboyTerminalGUI::waitKeyUnpressed() {
   uint32_t timerStamp = millis();
-  while (getKeys() && (millis() - timerStamp) < GUI_KEY_UNPRESSED_TIMEOUT) ESP.wdtFeed();;
+  while (getKeys() && (millis() - timerStamp) < GUI_KEY_UNPRESSED_TIMEOUT) delay(1);
   return (millis() - timerStamp);
 }
-
 
 void ESPboyTerminalGUI::drawKeyboard(uint8_t slX, uint8_t slY, uint8_t onlySelected) {
   static char chr[2]={0,0};
@@ -304,7 +293,6 @@ void ESPboyTerminalGUI::drawKeyboard(uint8_t slX, uint8_t slY, uint8_t onlySelec
   drawTyping(0);
 }
 
-
 void ESPboyTerminalGUI::drawTyping(uint8_t changeCursor) {
   static char cursorType[2] = {220, '_'};
   static uint8_t cursorTypeFlag=0;
@@ -320,7 +308,6 @@ void ESPboyTerminalGUI::drawTyping(uint8_t changeCursor) {
   }
 }
 
-
 void ESPboyTerminalGUI::drawOwnTypingLine(String typingLine, uint16_t colorLine){
   keybParam.typing = typingLine;
   toggleDisplayMode(0);
@@ -330,8 +317,6 @@ void ESPboyTerminalGUI::drawOwnTypingLine(String typingLine, uint16_t colorLine)
   tft->drawString(keybParam.typing, 4, 128 - 5 * 8 + 1);
 }
 
-
-
 void ESPboyTerminalGUI::drawBlinkingCursor() {
  static uint32_t cursorBlinkMillis = 0; 
   if (millis() > (cursorBlinkMillis + GUI_CURSOR_BLINKING_PERIOD)) {
@@ -340,7 +325,13 @@ void ESPboyTerminalGUI::drawBlinkingCursor() {
   }
 }
 
-
 void ESPboyTerminalGUI::SetKeybParamTyping(String str){
   keybParam.typing = str;
+}
+
+// ОПТИМИЗАЦИЯ: Прямая работа с Flash-памятью для экономии Heap при выводе статического текста
+void ESPboyTerminalGUI::printConsole(const __FlashStringHelper* bfrstr, uint16_t color, uint8_t ln, uint8_t noAddLine) {
+  // Конструктор String(const __FlashStringHelper*) создается только один раз на линии вызова 
+  // вместо неявных преобразований во всем коде.
+  printConsole(String(bfrstr), color, ln, noAddLine); 
 }

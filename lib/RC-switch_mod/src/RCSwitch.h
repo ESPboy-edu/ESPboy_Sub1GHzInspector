@@ -100,6 +100,13 @@ class RCSwitch {
     unsigned int getReceivedProtocol();
     unsigned int* getReceivedRawdata();
     uint8_t getNumProtos();
+    
+    // --- ПЕРЕМЕННЫЕ ОТЛАДКИ (ДОСТУПНЫ ИЗ ГЛАВНОГО КОДА) ---
+    volatile static unsigned long isrCount;
+    volatile static bool unknownPacketReady;
+    volatile static unsigned int unknownChangeCount;
+    static unsigned int unknownTimings[RCSWITCH_MAX_CHANGES];
+    // ------------------------------------------------------
     #endif
 
     void enableTransmit(int nTransmitterPin);
@@ -185,18 +192,12 @@ class RCSwitch {
     volatile static unsigned int nReceivedDelay;
     volatile static unsigned int nReceivedProtocol;
     const static unsigned int nSeparationLimit;
-    /*
-     * timings[0] contains sync timing, followed by a number of bits
-     */
+    
     static unsigned int timings[RCSWITCH_MAX_CHANGES];
-    // буфер длительностей последних четырех пакетов, [0] - последний
     static unsigned int buftimings[4];
     #endif
-
-
 };
 
-////
 class Keeloq {
   public:
     Keeloq();

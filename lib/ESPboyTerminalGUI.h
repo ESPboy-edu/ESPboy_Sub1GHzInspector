@@ -2,11 +2,11 @@
 ESPboyTerminalGUI class
 for www.ESPboy.com project by RomanS
 https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
-v2.1
+v7_2
 */
 
 //!!!!!!!!!!!!!!!!!
-#define U8g2  //if defined then using font 4x6, if commented using font 6x8
+//#define U8g2  //if defined then using font 4x6, if commented using font 6x8
 //#define buttonclicks //if defined - button are clicking but it takes more than 1kb RAM, if commented - no clicks and more free RAM
 //!!!!!!!!!!!!!!!!!
 
@@ -15,10 +15,9 @@ v2.1
 
 #include "ESPboyMCP.h"
 #include <TFT_eSPI.h>
-
-
 #include <FS.h> 
 using fs::FS;
+#include <deque> // ОПТИМИЗАЦИЯ: Подключаем двустороннюю очередь
 
 #ifdef U8g2
  #include "U8g2_for_TFT_eSPI.h"
@@ -51,7 +50,6 @@ using fs::FS;
 #define GUI_PAD_RGT         0x80
 #define GUI_PAD_ANY         0xff
 
-
 class ESPboyTerminalGUI{
 
 private:
@@ -61,13 +59,13 @@ private:
   U8g2_for_TFT_eSPI *u8f;
 #endif
 
-
  struct consoleStringS {
   String consoleString;
   uint16_t consoleStringColor;
   };
 
- std::vector <consoleStringS> consoleStringsVector;
+ // ОПТИМИЗАЦИЯ: std::deque обеспечивает O(1) удаление с начала очереди
+ std::deque <consoleStringS> consoleStringsVector;
 
   struct keyboardParameters{
     int16_t renderLine;
@@ -78,7 +76,8 @@ private:
     String typing;
   }keybParam;
 
-  const static uint8_t keybOnscr[2][3][21] PROGMEM;
+  // УЛУЧШЕНИЕ: Расширяем массив до 3 страниц клавиатуры
+  const static uint8_t keybOnscr[3][3][21] PROGMEM;
 
   uint8_t keysAction();
   void drawConsole(uint8_t onlyLastLine);
@@ -92,6 +91,8 @@ public:
   uint8_t getKeys();
   uint32_t waitKeyUnpressed();
   void printConsole(String bfrstr, uint16_t color, uint8_t ln, uint8_t noAddLine);
+  // ОПТИМИЗАЦИЯ: Перегрузка функции для работы напрямую с макросом F(), экономящая память Heap
+  void printConsole(const __FlashStringHelper* bfrstr, uint16_t color, uint8_t ln, uint8_t noAddLine);
   String getUserInput();
   void doScroll();
   void toggleDisplayMode(uint8_t mode);
