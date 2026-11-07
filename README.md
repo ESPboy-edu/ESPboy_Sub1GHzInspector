@@ -35,7 +35,7 @@ Any standard 8-pin CC1101 breakout board with an external antenna connector is c
   
   ![Blue Module](pics/cc1101_2.png)
 
-- **Green CC1101 Module** with antenna: [AliExpress Search](https://aliexpress.ru/item/32858516951.html)
+- **Green CC1101 Module** with antenna (Not recommended, sensitivity is too low.): [AliExpress Search](https://aliexpress.ru/item/32858516951.html)
   
   ![Green Module](pics/cc1101_1.png)
 
