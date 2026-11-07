@@ -3,7 +3,7 @@ ESPboy Sub1Ghz inspector
 for www.ESPboy.com project by RomanS
 https://hackaday.io/project/164830-espboy-games-iot-stem-for-education-fun
 
-v2.1 Mod: CC1101 CSN via MCP23017 GPB2 (pin 10) + safe GPIOs + AGC Filter + Serial Debug
+v2.4 Mod: Custom Settings Menu, Live RSSI with Stars, EEPROM Save, FSK Params
 */
 
 #include "lib/ESPboyInit.h"
@@ -24,7 +24,7 @@ v2.1 Mod: CC1101 CSN via MCP23017 GPB2 (pin 10) + safe GPIOs + AGC Filter + Seri
 #define CC1101chipSelectPin 10  // GPB2 на расширителе MCP23017
 #define TFTchipSelectPin    8   // GPB0 на расширителе MCP23017
 
-#define APP_ID 0xCCCD
+#define APP_ID 0xCCCE 
 #define MAX_RECORDS_TO_STORE 40
 #define DEFAULT_SIGNAL_REPEAT_NUMBER 3
 #define EEPROM_OFFSET 10
@@ -48,15 +48,23 @@ String protDecode[]={
 char *menuList[MAX_RECORDS_TO_STORE+1];
 
 const char *menuMain[] PROGMEM = {
-"LISTEN", "LISTEN & STORE", "LIST OF STORED", "SAVE ALL", "CLEAR ALL", NULL
+"LISTEN", "LISTEN & STORE", "LIST OF STORED", "SAVE ALL", "CLEAR ALL", "SETTINGS", NULL
 };
 
 const char *menuRecord[] PROGMEM = {
 "SEND", "SHOW", "SET REPEAT", "RENAME", "DELETE", "CANCEL", NULL
 };
 
-enum {listen_=1, listenstore_, listofstored_, saveall_, clearall_};
+enum {listen_=1, listenstore_, listofstored_, saveall_, clearall_, settings_};
 enum {send_=1, show_, setrepeat_, rename_, delete_, cancel_};
+
+// --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ НАСТРОЕК CC1101 ---
+float currentFreq = 433.92;
+uint8_t currentMod = 2; // 2 = ASK/OOK, 0 = 2-FSK, 1 = GFSK
+uint16_t currentRxBw = 600;
+float currentDRate = 4.8;
+float currentDev = 47.6;
+// ---------------------------------------------
 
 RCSwitch mySwitch;
 ESPboyInit myESPboy;
@@ -64,8 +72,13 @@ ESPboyTerminalGUI *terminalGUIobj = NULL;
 ESPboyMenuGUI *menuGUIobj = NULL;
 
 struct EEPROMinitStruct{
-uint32_t appId = APP_ID;
-uint8_t  recordsQuantity = 0;
+  uint32_t appId = APP_ID;
+  uint8_t  recordsQuantity = 0;
+  float    freq = 433.92;
+  uint8_t  mod = 2;
+  uint16_t rxbw = 600;
+  float    drate = 4.8;
+  float    dev = 47.6;
 }EEPROMinit;
 
 struct recordStored{
@@ -95,10 +108,10 @@ return returnVal;
 
 // ---------------- Обертки для GUI (переведены на MCP23017, ИСПРАВЛЕНЫ) ----------------
 void printConsoleLocal(String str, uint32_t clr, uint8_t flag1, uint8_t flag2){
-myESPboy.mcp.digitalWrite(CC1101chipSelectPin, HIGH); // Отключаем CC1101 от шины
-myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);     // Включаем дисплей
+myESPboy.mcp.digitalWrite(CC1101chipSelectPin, HIGH); 
+myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);     
 terminalGUIobj->printConsole(str, clr, flag1, flag2);
-myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);    // Отключаем дисплей
+myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);    
 }
 
 String getUserInputLocal(){
@@ -124,13 +137,14 @@ terminalGUIobj->doScroll();
 myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
 }
 
-uint16_t menuInitLocal(const char** menuLines, uint16_t menuLineColor, uint16_t menuUnselectedLineColor, uint16_t menuSelectionColor){
-uint16_t menuItemSelected;
-myESPboy.mcp.digitalWrite(CC1101chipSelectPin, HIGH);
-myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);
-menuItemSelected = menuGUIobj->menuInit(menuLines, menuLineColor, menuUnselectedLineColor, menuSelectionColor);
-myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
-return (menuItemSelected);
+// Пробрасываем параметр returnOnArrowKeys
+uint16_t menuInitLocal(const char** menuLines, uint16_t menuLineColor, uint16_t menuUnselectedLineColor, uint16_t menuSelectionColor, bool returnOnArrowKeys = false){
+  uint16_t menuItemSelected;
+  myESPboy.mcp.digitalWrite(CC1101chipSelectPin, HIGH);
+  myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);
+  menuItemSelected = menuGUIobj->menuInit(menuLines, menuLineColor, menuUnselectedLineColor, menuSelectionColor, returnOnArrowKeys);
+  myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
+  return (menuItemSelected);
 }
 // --------------------------------------------------------------------------
 
@@ -206,6 +220,9 @@ toPrint+=(String)mySwitch.getReceivedDelay();
 toPrint+=" ms";
 printConsoleLocal(toPrint, TFT_WHITE, 1, 0);
 
+toPrint = "RSSI: " + String(rssi) + " dBm   LQI: " + String(lqi);
+printConsoleLocal(toPrint, TFT_CYAN, 1, 0);
+
 printConsoleLocal(F("DATA: "), TFT_BLUE, 1, 0);
 toPrint="";
 rawData = mySwitch.getReceivedRawdata();
@@ -216,17 +233,30 @@ printConsoleLocal("", TFT_BLACK, 1, 0);
 }
 
 void readEEPROM(){
-
 EEPROM.get(EEPROM_OFFSET, EEPROMinit);
 if (EEPROMinit.appId != APP_ID){
-EEPROMinit.appId = APP_ID;
-EEPROMinit.recordsQuantity = 0;
-EEPROM.put(EEPROM_OFFSET, EEPROMinit);
-EEPROM.commit();
+  EEPROMinit.appId = APP_ID;
+  EEPROMinit.recordsQuantity = 0;
+  
+  EEPROMinit.freq = 433.92;
+  EEPROMinit.mod = 2;
+  EEPROMinit.rxbw = 600;
+  EEPROMinit.drate = 4.8;
+  EEPROMinit.dev = 47.6;
+  
+  EEPROM.put(EEPROM_OFFSET, EEPROMinit);
+  EEPROM.commit();
 }
+
+currentFreq = EEPROMinit.freq;
+currentMod = EEPROMinit.mod;
+currentRxBw = EEPROMinit.rxbw;
+currentDRate = EEPROMinit.drate;
+currentDev = EEPROMinit.dev;
+
 for (uint8_t i=0; i<EEPROMinit.recordsQuantity; i++){
-recordStoredVector.push_back(recordStored());
-EEPROM.get(EEPROM_OFFSET + sizeof(EEPROMinit) + i*(sizeof(recordStored)), recordStoredVector.back());
+  recordStoredVector.push_back(recordStored());
+  EEPROM.get(EEPROM_OFFSET + sizeof(EEPROMinit) + i*(sizeof(recordStored)), recordStoredVector.back());
 };
 };
 
@@ -256,7 +286,6 @@ signalName += (String)mySwitch.getReceivedValue();
 memcpy(&recordStoredVector.back().recordName, signalName.c_str(), signalName.length()+1);
 };
 
-// Функция-коллбек для управления линией CSN через MCP23017
 void mcp_cs_write(bool state) {
 myESPboy.mcp.digitalWrite(CC1101chipSelectPin, state);
 }
@@ -268,113 +297,91 @@ Serial.println("\nStarting ESPboy Sub1GHz Inspector...");
 EEPROM.begin(2048);
 readEEPROM();
 
-myESPboy.begin("Sub1GHz inspector v2");
+myESPboy.begin("Sub1GHz inspector v2.4");
 
 terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
 menuGUIobj = new ESPboyMenuGUI(&myESPboy);
 
-// 1. Настройка пинов CS (оба отпускаем в HIGH)
 myESPboy.mcp.pinMode(CC1101chipSelectPin, OUTPUT);
 myESPboy.mcp.digitalWrite(CC1101chipSelectPin, HIGH);
 myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
 
-// 2. Инициализация библиотеки CC1101
 ELECHOUSE_cc1101.setCS_MCP(mcp_cs_write);
 ELECHOUSE_cc1101.setSpiPin(14, 12, 13, 0);
 ELECHOUSE_cc1101.setGDO(CC1101sendPin, CC1101riceivePin);
 ELECHOUSE_cc1101.Init();
 
-// 3. ЖЕСТКАЯ ПРОВЕРКА ЧИПА
 byte partnum = ELECHOUSE_cc1101.SpiReadStatus(0x30);
 byte version = ELECHOUSE_cc1101.SpiReadStatus(0x31);
-
-Serial.printf("CC1101 Hardware Check -> PartNum: %02X, Version: %02X\n", partnum, version);
-
 if(partnum != 0x00 || (version != 0x04 && version != 0x14)){
-Serial.println("CRITICAL ERROR: CC1101 is DEAD or SPI bus collision!");
-myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);
-myESPboy.mcp.digitalWrite(CC1101chipSelectPin, HIGH);
-myESPboy.tft.setTextColor(0xF800);
-myESPboy.tft.drawString("CC1101 SPI ERROR", 20 ,40);
-myESPboy.tft.drawString("Check wiring!", 30 ,55);
-while(1) delay(100);
-} else {
-Serial.println("CC1101 successfully connected!");
-}
+  myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);
+  myESPboy.mcp.digitalWrite(CC1101chipSelectPin, HIGH);
+  myESPboy.tft.setTextColor(0xF800);
+  myESPboy.tft.drawString("CC1101 SPI ERROR", 20 ,40);
+  myESPboy.tft.drawString("Check wiring!", 30 ,55);
+  while(1) delay(100);
+} 
 
-// Настройка под "плавающие" дешевые пульты
-  ELECHOUSE_cc1101.setMHZ(433.92); 
-  
-  // Расширяем полосу пропускания ПЧ 
-  ELECHOUSE_cc1101.setRxBW(600);
+  ELECHOUSE_cc1101.setMHZ(currentFreq); 
+  ELECHOUSE_cc1101.setModulation(currentMod);
+  ELECHOUSE_cc1101.setRxBW(currentRxBw);
+  ELECHOUSE_cc1101.setDRate(currentDRate);
+  ELECHOUSE_cc1101.setDeviation(currentDev);
 
-  // Возвращаем АРУ на максимальную чувствительность (убираем шумоподавитель)
   ELECHOUSE_cc1101.SpiWriteReg(CC1101_AGCCTRL2, 0xC7); 
   ELECHOUSE_cc1101.SpiWriteReg(CC1101_AGCCTRL1, 0x00); 
   ELECHOUSE_cc1101.SpiWriteReg(CC1101_AGCCTRL0, 0xB2);
 
 mySwitch.enableReceive(digitalPinToInterrupt(CC1101riceivePin));
-
 ELECHOUSE_cc1101.SetRx();
-
 }
 
 void listen_f(uint8_t storeFlag){
   String str="";
   uint8_t ledFlag = 1;
   uint32_t counter = millis();
-  bool isScanning = true; // Флаг состояния: true = слушаем эфир, false = скроллим
+  bool isScanning = true; 
 
   mySwitch.resetAvailable();
   toggleDisplayModeLocal(1); 
-  //printConsoleLocal(F("Listening..."), TFT_MAGENTA, 1, 0);
  
   while(true){
     uint8_t pressedButtons = myESPboy.getKeys();
     
-    // 1. Выход в меню по кнопке ESC (работает всегда)
     if(pressedButtons & PAD_ESC){
       break;
     }
 
-    // 2. Если сканируем и нажали ACT, LFT или RGT — СТАВИМ НА ПАУЗУ
     if (isScanning && (pressedButtons & PAD_ACT || pressedButtons & PAD_RGT || pressedButtons & PAD_LFT)) {
       isScanning = false;
       printConsoleLocal(F("Stop"), TFT_MAGENTA, 1, 1);
       printConsoleLocal(F("LGT/RGT-scroll. ACT-resume. B-exit"), TFT_MAGENTA, 1, 0);
       
-      // Если пауза вызвана кнопкой ACT, ждем ее отпускания, чтобы не переключилось обратно
       if (pressedButtons & PAD_ACT) {
          while(myESPboy.getKeys()) delay(10); 
       }
-      continue; // Уходим на следующий круг цикла (в режим паузы/скроллинга)
+      continue; 
     }
 
-    // 3. Если сканирование на паузе (работает скроллинг)
     if (!isScanning) {
       if (pressedButtons & PAD_RGT || pressedButtons & PAD_LFT) {
-        doScrollLocal(); // Скроллим экран
-        delay(50);       // Антидребезг
+        doScrollLocal(); 
+        delay(50);       
         continue;
       }
       
-      // Возврат к сканированию по кнопке ACT
       if (pressedButtons & PAD_ACT) {
         isScanning = true;
         ledFlag = 1;
         str = "";
         counter = millis();
-        mySwitch.resetAvailable(); // Очищаем буфер приемника от мусора
-        //printConsoleLocal(F("Listening..."), TFT_MAGENTA, 1, 1);
-        while(myESPboy.getKeys()) delay(10); // Ждем отпускания ACT
+        mySwitch.resetAvailable(); 
+        while(myESPboy.getKeys()) delay(10); 
         continue;
       }
     }
 
-    // 4. Логика приема пакетов (РАБОТАЕТ ТОЛЬКО ЕСЛИ isScanning == true)
     if (isScanning) {
- 
-    
       if (mySwitch.available()) {
         myESPboy.myLED.setRGB(0,20,0);
         ledFlag = 1;
@@ -404,24 +411,46 @@ void listen_f(uint8_t storeFlag){
         mySwitch.resetAvailable();
       }
     
-      // Анимация бегущих точек
-      if(millis()-counter>2000){
+      // --- МОНИТОР LIVE RSSI (УКОРОЧЕННЫЙ ВЫВОД + ЗВЕЗДОЧКИ) ---
+      if(millis()-counter > 500){ 
         myESPboy.myLED.setRGB(0,20,0);
         counter=millis();
-        printConsoleLocal(str, TFT_MAGENTA, 1, 1);
-        str+=".";
-        if (str.length()>20) str="";
+        
+        int liveRssi = ELECHOUSE_cc1101.getRssi(); 
+        
+        String stars;
+        if (liveRssi < -95)      stars = "*    ";
+        else if (liveRssi < -80) stars = "**   ";
+        else if (liveRssi < -65) stars = "***  ";
+        else if (liveRssi < -50) stars = "**** ";
+        else                     stars = "*****";
+        
+        String liveStr = "RSSI:" + String(liveRssi) + " " + stars + " ";
+        printConsoleLocal(liveStr, TFT_MAGENTA, 1, 1); 
+        
         myESPboy.myLED.setRGB(0,0,0);
       }
+      // ---------------------------------------------------------
       
       if(ledFlag){
         ledFlag=0;
         myESPboy.myLED.setRGB(0,0,0);
+        
+        // --- ВЫВОД ПАРАМЕТРОВ ПЕРЕД СКАНИРОВАНИЕМ ---
+        String s_mod = (currentMod == 2) ? "ASK" : (currentMod == 0) ? "2FSK" : "GFSK";
+        String p1 = "F:" + String(currentFreq) + " M:" + s_mod;
+        String p2 = "BW:" + String(currentRxBw) + " D:" + String(currentDRate);
+        String p3 = "DEV:" + String(currentDev);
+        
+        printConsoleLocal(p1, TFT_YELLOW, 1, 0);
+        printConsoleLocal(p2, TFT_YELLOW, 1, 0);
+        printConsoleLocal(p3, TFT_YELLOW, 1, 0);
+        
         printConsoleLocal(F("Listening..."), TFT_MAGENTA, 1, 0);
-        printConsoleLocal(F(""), TFT_MAGENTA, 1, 0);
+        printConsoleLocal(F(""), TFT_MAGENTA, 1, 0); // Пустая строка для перезаписи RSSI
+        // --------------------------------------------
       }
     }
-    
     delay(10);
   }
 
@@ -442,58 +471,43 @@ toPrint += " times";
 printConsoleLocal(toPrint, TFT_MAGENTA, 1, 0);
 
 ELECHOUSE_cc1101.SetTx();
-
 mySwitch.disableReceive();
-
 mySwitch.enableTransmit(CC1101sendPin);
-
 mySwitch.setRepeatTransmit(recordStoredVector[selectedSignal].recordRepeatno);
 mySwitch.setProtocol(recordStoredVector[selectedSignal].recordProtocol);
-
 mySwitch.setPulseLength(recordStoredVector[selectedSignal].recordPulselen);
-
 mySwitch.send(recordStoredVector[selectedSignal].recordValue,recordStoredVector[selectedSignal].recordBits);
-
 ELECHOUSE_cc1101.SetRx();
-
 mySwitch.disableTransmit();
-
 mySwitch.enableReceive(digitalPinToInterrupt(CC1101riceivePin));
 
 printConsoleLocal(F("DONE"), TFT_MAGENTA, 1, 0);
 printConsoleLocal("", TFT_MAGENTA, 1, 0);
-
 myESPboy.myLED.setRGB(0,0,0);
-
 while (!myESPboy.getKeys())delay(10);
 while (myESPboy.getKeys())delay(10);
 }
 
 void show_f(uint16_t selectedSignal) {
 String toPrint;
-
 selectedSignal--;
 toggleDisplayModeLocal(1);
 
 toPrint = F("Signal: ");
 toPrint+=recordStoredVector[selectedSignal].recordName;
 printConsoleLocal(toPrint, TFT_GREEN, 1, 0);
-
 toPrint = F("Value: ");
 toPrint += (String)recordStoredVector[selectedSignal].recordValue;
 toPrint += (" (");
 toPrint += (String)recordStoredVector[selectedSignal].recordBits;
 toPrint += (" Bit)");
 printConsoleLocal(toPrint, TFT_GREEN, 1, 0);
-
 toPrint = F("Repeat No: ");
 toPrint += (String)recordStoredVector[selectedSignal].recordRepeatno;
 printConsoleLocal(toPrint, TFT_YELLOW, 1, 0);
-
 toPrint = F("Pulse length: ");
 toPrint += (String)recordStoredVector[selectedSignal].recordPulselen;
 printConsoleLocal(toPrint, TFT_YELLOW, 1, 0);
-
 toPrint = F("Protocol: ");
 toPrint += (String)recordStoredVector[selectedSignal].recordProtocol;
 printConsoleLocal(toPrint, TFT_YELLOW, 1, 0);
@@ -583,6 +597,89 @@ while (myESPboy.getKeys())delay(10);
 printConsoleLocal("", TFT_MAGENTA, 1, 0);
 }
 
+// --- МЕНЮ НАСТРОЕК ---
+void settings_f() {
+  uint8_t exitFlag = 0;
+  String lines[6];
+  const char *menuSettings[7]; 
+  
+  while (!exitFlag) {
+    lines[0] = "FREQ: " + String(currentFreq) + " MHz";
+    String s_mod = "MOD: ";
+    if (currentMod == 2) s_mod += "ASK/OOK";
+    else if (currentMod == 0) s_mod += "2-FSK";
+    else s_mod += "GFSK";
+    lines[1] = s_mod;
+    lines[2] = "RX BW: " + String(currentRxBw) + " kHz";
+    lines[3] = "DRATE: " + String(currentDRate) + " kBaud";
+    lines[4] = "DEV: " + String(currentDev) + " kHz";
+    lines[5] = "BACK";
+
+    for (int i=0; i<6; i++) menuSettings[i] = lines[i].c_str();
+    menuSettings[6] = NULL;
+
+    uint16_t result = menuInitLocal(menuSettings, TFT_YELLOW, TFT_BLUE, TFT_BLUE, true);
+    
+    uint16_t selectedItem = result & 0x3FFF; 
+    
+    switch (selectedItem) {
+      case 1: 
+        if (currentFreq == 433.92f) currentFreq = 315.00f;
+        else if (currentFreq == 315.00f) currentFreq = 868.35f;
+        else currentFreq = 433.92f;
+        break;
+      case 2: 
+        if (currentMod == 2) currentMod = 0;      
+        else if (currentMod == 0) currentMod = 1; 
+        else currentMod = 2;                      
+        break;
+      case 3: 
+        if (currentRxBw == 600) currentRxBw = 300;
+        else if (currentRxBw == 300) currentRxBw = 100;
+        else currentRxBw = 600;
+        break;
+      case 4: 
+        if (currentDRate == 4.8f) currentDRate = 9.6f;
+        else if (currentDRate == 9.6f) currentDRate = 19.2f;
+        else if (currentDRate == 19.2f) currentDRate = 1.2f;
+        else currentDRate = 4.8f;
+        break;
+      case 5: 
+        if (currentDev == 47.6f) currentDev = 25.4f;
+        else if (currentDev == 25.4f) currentDev = 9.5f;
+        else if (currentDev == 9.5f) currentDev = 4.7f;
+        else currentDev = 47.6f;
+        break;
+      case 6: 
+      case 0: 
+        exitFlag = 1;
+        break;
+    }
+  }
+
+  myESPboy.mcp.digitalWrite(CC1101chipSelectPin, HIGH);
+  myESPboy.mcp.digitalWrite(TFTchipSelectPin, LOW);
+  myESPboy.tft.fillScreen(TFT_BLACK);
+  myESPboy.mcp.digitalWrite(TFTchipSelectPin, HIGH);
+
+  ELECHOUSE_cc1101.SpiStrobe(0x36); 
+  ELECHOUSE_cc1101.setMHZ(currentFreq);
+  ELECHOUSE_cc1101.setModulation(currentMod);
+  ELECHOUSE_cc1101.setRxBW(currentRxBw);
+  ELECHOUSE_cc1101.setDRate(currentDRate);
+  ELECHOUSE_cc1101.setDeviation(currentDev);
+  ELECHOUSE_cc1101.SetRx(); 
+  
+  EEPROMinit.freq = currentFreq;
+  EEPROMinit.mod = currentMod;
+  EEPROMinit.rxbw = currentRxBw;
+  EEPROMinit.drate = currentDRate;
+  EEPROMinit.dev = currentDev;
+  EEPROM.put(EEPROM_OFFSET, EEPROMinit);
+  EEPROM.commit();
+}
+// ---------------------------------------------
+
 void loop(){
 switch (menuInitLocal(menuMain, TFT_YELLOW, TFT_BLUE, TFT_BLUE)){
 case listen_:
@@ -608,6 +705,9 @@ toggleDisplayModeLocal(1);
 printConsoleLocal(F("Clearing memory..."), TFT_MAGENTA, 1, 0);
 recordStoredVector.clear();
 printInfoMessage(F("DONE"));
+break;
+case settings_:
+settings_f();
 break;
 default:
 delay(150);

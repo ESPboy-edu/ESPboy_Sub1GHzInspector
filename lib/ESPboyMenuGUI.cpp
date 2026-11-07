@@ -19,8 +19,6 @@ ESPboyMenuGUI::ESPboyMenuGUI(ESPboyInit *myESPboyPointer) {
 #endif
 }
 
-
-
 void ESPboyMenuGUI::menuDraw(){
   static uint16_t scalingFactor;
   static uint16_t previousRect = 0;
@@ -51,23 +49,30 @@ void ESPboyMenuGUI::menuDraw(){
   for (uint8_t i=0;; i++){
     if(i>=menuList.menuItemsQuantity || i>=MENU_MAX_LINES_ONSCREEN) break;
 
+    // --- ОЧИСТКА СТРОКИ: заливаем фон черным цветом перед выводом текста ---
+    myESPboy->tft.fillRect(1, i*MENU_SPACE_BETWEEN_LINES+1, 120, MENU_SPACE_BETWEEN_LINES-2, TFT_BLACK);
+    // -----------------------------------------------------------------------
+
     #ifndef U8g2_MENU
       if(menuList.menuLine[i+menuList.menuOffset][0] == '-'){ 
-        myESPboy->tft.setTextColor(menuList.menuUnselectedLineColor);
+        // Добавлен второй параметр TFT_BLACK для непрозрачного фона букв
+        myESPboy->tft.setTextColor(menuList.menuUnselectedLineColor, TFT_BLACK);
         myESPboy->tft.drawString(&menuList.menuLine[i+menuList.menuOffset][1], 3, i*MENU_SPACE_BETWEEN_LINES+2);
       }
       else{
-        myESPboy->tft.setTextColor(menuList.menuLineColor);
+        myESPboy->tft.setTextColor(menuList.menuLineColor, TFT_BLACK);
         myESPboy->tft.drawString(menuList.menuLine[i+menuList.menuOffset], 3, i*MENU_SPACE_BETWEEN_LINES+2); 
       }
     #else
       if(menuList.menuLine[i+menuList.menuOffset][0] == '-'){ 
         u8f->setForegroundColor(menuList.menuUnselectedLineColor);
-        u8f->drawStr(3, i*MENU_SPACE_BETWEEN_LINES+1+GUI_FONT_HEIGHT, &menuList.menuLine[i+menuList.menuOffset][1]);
+        u8f->setBackgroundColor(TFT_BLACK);
+        u8f->drawStr(3, i*MENU_SPACE_BETWEEN_LINES+1+GUI_FONT_HEIGHT_MENU, &menuList.menuLine[i+menuList.menuOffset][1]);
       }
       else { 
         u8f->setForegroundColor(menuList.menuLineColor);
-        u8f->drawStr(3, i*MENU_SPACE_BETWEEN_LINES+1+GUI_FONT_HEIGHT, menuList.menuLine[i+menuList.menuOffset]);
+        u8f->setBackgroundColor(TFT_BLACK);
+        u8f->drawStr(3, i*MENU_SPACE_BETWEEN_LINES+1+GUI_FONT_HEIGHT_MENU, menuList.menuLine[i+menuList.menuOffset]);
       }
     #endif
     
@@ -79,69 +84,87 @@ void ESPboyMenuGUI::menuDraw(){
  myESPboy->tft.fillRect(125, (scalingFactor*menuList.menuCurrent+2)/1000, 3, 5, TFT_YELLOW);
 }
 
+uint16_t ESPboyMenuGUI::menuInit(const char** menuLinesF, uint16_t menuLineColorF, uint16_t menuUnselectedLineColorF, uint16_t menuSelectionColorF, bool returnOnArrowKeys){             
+  uint16_t count=0;
+  static uint8_t keyPressed;
+  
+  while(menuLinesF[count++]);
+  uint16_t newItemsQuantity = count-1;
 
+  if (menuList.menuItemsQuantity != newItemsQuantity || returnOnArrowKeys == false) {
+    myESPboy->tft.fillScreen(TFT_BLACK);
+    menuList.menuCurrent = 0;
+    menuList.menuOffset = 0;
+  }
 
-uint16_t ESPboyMenuGUI::menuInit(const char** menuLinesF, uint16_t menuLineColorF, uint16_t menuUnselectedLineColorF, uint16_t menuSelectionColorF){             
- uint16_t count=0;
- static uint8_t keyPressed;
-  myESPboy->tft.fillScreen(TFT_BLACK);
   menuList.menuLine = menuLinesF;
   menuList.menuLineColor = menuLineColorF;
   menuList.menuUnselectedLineColor = menuUnselectedLineColorF;
-  menuList.menuCurrent = 0;
   menuList.menuSelectionColor = menuSelectionColorF;
-  menuList.menuOffset=0;
-  while(menuLinesF[count++]);
-  menuList.menuItemsQuantity = count-1;
+  menuList.menuItemsQuantity = newItemsQuantity;
 
   menuDraw();
 
- while(1){  
-  while (!myESPboy->getKeys())delay(50);
+  while(1){  
+    while (!myESPboy->getKeys()) delay(20); 
   
-  keyPressed = myESPboy->getKeys();
+    keyPressed = myESPboy->getKeys();
   
-  if (keyPressed&MenuGUI_PAD_UP && menuList.menuCurrent > 0) {
-    menuList.menuCurrent--;
-    #ifdef buttonclicks
-    myESPboy->playTone(10,10);
-    #endif
-    menuDraw();
-  }
-  if (keyPressed&MenuGUI_PAD_DOWN && menuList.menuCurrent+1 < menuList.menuItemsQuantity) {
-    menuList.menuCurrent++;
-    #ifdef buttonclicks
-    myESPboy->playTone(10,10);
-    #endif
-    menuDraw();
-  }
-  if (keyPressed&MenuGUI_PAD_ACT && menuList.menuLine[menuList.menuCurrent][0] != '-') {
-    #ifdef buttonclicks  
-      myESPboy->playTone(100,100);
-    #endif
+    if (keyPressed & MenuGUI_PAD_UP && menuList.menuCurrent > 0) {
+      menuList.menuCurrent--;
+      #ifdef buttonclicks
+      myESPboy->playTone(10,10);
+      #endif
+      menuDraw();
+    }
+    if (keyPressed & MenuGUI_PAD_DOWN && menuList.menuCurrent+1 < menuList.menuItemsQuantity) {
+      menuList.menuCurrent++;
+      #ifdef buttonclicks
+      myESPboy->playTone(10,10);
+      #endif
+      menuDraw();
+    }
     
-    uint16_t screenY = (menuList.menuCurrent - menuList.menuOffset) * MENU_SPACE_BETWEEN_LINES;
+    if (returnOnArrowKeys) {
+      if (keyPressed & MenuGUI_PAD_LEFT || keyPressed & MenuGUI_PAD_LFT) {
+        while(myESPboy->getKeys()) delay(20);
+        return (menuList.menuCurrent + 1) | 0x4000; 
+      }
+      if (keyPressed & MenuGUI_PAD_RIGHT || keyPressed & MenuGUI_PAD_RGT) {
+        while(myESPboy->getKeys()) delay(20);
+        return (menuList.menuCurrent + 1) | 0x8000; 
+      }
+    }
+
+    if (keyPressed & MenuGUI_PAD_ACT && menuList.menuLine[menuList.menuCurrent][0] != '-') {
+      #ifdef buttonclicks  
+        myESPboy->playTone(100,100);
+      #endif
     
-    myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, TFT_BLACK);
-    delay(50);
-    myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, menuList.menuSelectionColor);
-    delay(50);
-    myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, TFT_BLACK);
-    delay(50);
-    myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, menuList.menuSelectionColor);
-    delay(200);
+      uint16_t screenY = (menuList.menuCurrent - menuList.menuOffset) * MENU_SPACE_BETWEEN_LINES;
     
-    myESPboy->tft.fillScreen(TFT_BLACK);
-    return(menuList.menuCurrent+1);
-  }
-  if (keyPressed&MenuGUI_PAD_ESC){
-    #ifdef buttonclicks  
-      myESPboy->playTone(100,100);
-    #endif    
-    myESPboy->tft.fillScreen(TFT_BLACK);
-    return(0);
-  }
+      myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, TFT_BLACK);
+      delay(50);
+      myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, menuList.menuSelectionColor);
+      delay(50);
+      myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, TFT_BLACK);
+      delay(50);
+      myESPboy->tft.drawRect(0, screenY, 122, MENU_SPACE_BETWEEN_LINES, menuList.menuSelectionColor);
+      delay(100); 
+    
+      if (!returnOnArrowKeys) myESPboy->tft.fillScreen(TFT_BLACK);
+      while(myESPboy->getKeys()) delay(20); 
+      return(menuList.menuCurrent+1);
+    }
+    if (keyPressed & MenuGUI_PAD_ESC){
+      #ifdef buttonclicks  
+        myESPboy->playTone(100,100);
+      #endif    
+      if (!returnOnArrowKeys) myESPboy->tft.fillScreen(TFT_BLACK);
+      while(myESPboy->getKeys()) delay(20);
+      return(0);
+    }
   
-  delay(120);
- }
+    delay(100);
+  }
 };

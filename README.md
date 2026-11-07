@@ -1,4 +1,4 @@
-# ESPboy Sub1GHz Inspector v2.1
+# ESPboy Sub1GHz Inspector v2.4
 
 [Demo video](https://youtu.be/BxWNkIO8hpA)
 
@@ -14,13 +14,16 @@ Analyze wireless protocols, decode keyfobs, store captured remotes in EEPROM, an
 
 ---
 
-## What's New in v2.1
+## What's New in v2.4
 
-- **Hardware Conflict Resolution**: Moved CC1101 CSN (Chip Select) to the onboard MCP23017 port expander (**GPB2 / Pin 10**). This prevents boot strapping failures on ESP8266 boot pins and eliminates SPI bus collisions with the ST7735 TFT display.
+- **Dynamic RF Settings Menu**: Configure Frequency (315/433.92/868.35 MHz), Modulation (ASK/OOK, 2-FSK, GFSK), RX Bandwidth, Data Rate, and Deviation on the fly.
+- **FSK/GFSK Support**: Analyze signals from modern car keys (e.g., Volvo, Saab) and advanced IoT sensors that use frequency shift keying.
+- **Live RSSI Meter**: Real-time signal strength indicator with a 5-star visual scale and `dBm` readout during the scanning phase.
+- **Signal Quality Metrics**: Displays RSSI and LQI (Link Quality Indicator) for successfully decoded packets.
+- **Persistent Configuration**: All RF settings are silently saved to the EEPROM and restored on boot.
+- **Smooth UI Navigation**: Upgraded `ESPboyMenuGUI` allows parameter adjustment using D-pad left/right without screen flickering.
+- **Hardware Conflict Resolution**: Moved CC1101 CSN (Chip Select) to the onboard MCP23017 port expander (**GPB2 / Pin 10**) to prevent SPI bus collisions.
 - **Safe Boot Pinout**: Shifted GDO2 (RX) to `GPIO15` (D8) and GDO0 (TX) to `GPIO16` (D0), freeing up system pins and preventing boot lockups.
-- **Power Decoupling Fix**: Resolves brownouts and reception freezes when operating on battery by placing a low-ESR tantalum capacitor across CC1101 $V_{CC}$ and $GND$.
-- **Expanded IF Filter Bandwidth**: Receiver bandwidth (`RxBW`) tuned for low-cost keyfobs with drifting SAW resonators.
-- **Pause & Scroll Controls**: Freeze live captures on demand (`LFT`, `RGT`, or `ACT`) to scroll and examine captured signals, resuming listening via `ACT`.
 
 ---
 
@@ -46,12 +49,12 @@ Connect the CC1101 module to the ESPboy expansion header as outlined below:
 | :--- | :--- | :--- | :--- |
 | **GND** (Pin 1) | **GND** | GND | Ground |
 | **VCC** (Pin 2) | **3V3** | 3.3V | Power Supply (3.3V) |
-| **GDO0** (TX) | **D0** | GPIO16 | ASK/OOK Transmit Pin |
+| **GDO0** (TX) | **D0** | GPIO16 | TX Data Pin |
 | **CSN** (SS) | **MCP23017 GPB2** | Pin 10 on MCP | Chip Select (via I2C expander) |
 | **SCK** (Clock) | **D5** | GPIO14 | Hardware SPI Clock |
 | **MOSI** | **D7** | GPIO13 | Hardware SPI MOSI |
 | **MISO** | **D6** | GPIO12 | Hardware SPI MISO |
-| **GDO2** (RX) | **D8** | GPIO15 | ASK/OOK Receive (Interrupt) |
+| **GDO2** (RX) | **D8** | GPIO15 | RX Data / Interrupt Pin |
 
 > ⚠️ **Important Hardware Recommendation (Battery Stability):**  
 > CC1101 modules are sensitive to supply noise and current spikes. To prevent reboots or receiver deafness when powered by the LiPo battery, solder a **$100\ \mu\text{F}$ tantalum SMD capacitor (marking 107C)** or an electrolytic capacitor directly across the CC1101 module's $V_{CC}$ and $GND$ pins.
@@ -60,7 +63,7 @@ Connect the CC1101 module to the ESPboy expansion header as outlined below:
 
 ## 3. Supported Protocols
 
-The firmware decodes over 39 common fixed and dynamic OOK/ASK protocols via the enhanced `rc-switch` engine, including:
+The firmware decodes over 39 common fixed and dynamic protocols via the enhanced `rc-switch` engine, including:
 
 - **Protocol 01**: Princeton, PT2240, PT2260, PT2262, EV1527
 - **Protocol 06**: Holtek HT6P20B
@@ -75,6 +78,8 @@ The firmware decodes over 39 common fixed and dynamic OOK/ASK protocols via the 
 - **Protocol 29**: NEXA
 - **Protocol 33 / 35 / 36**: Dooya shutter motors (DC2708L, DC1603, DC2700AC)
 - And more (weather stations, alarm systems, smart plugs).
+
+*Note: For FSK/GFSK based automotive keys (like Saab, Volvo), ensure you switch the modulation to 2-FSK or GFSK in the SETTINGS menu to capture raw timings properly.*
 
 ---
 
@@ -96,7 +101,8 @@ The firmware decodes over 39 common fixed and dynamic OOK/ASK protocols via the 
 ## 5. UI Controls
 
 ### In `LISTEN` and `LISTEN & STORE` Modes:
-- **RF Capture**: Incoming recognized packets are decoded and displayed with DEC, BIN, TRI, Protocol ID, and bit lengths.
+- **RF Capture**: Incoming recognized packets are decoded and displayed with DEC, BIN, TRI, Protocol ID, bit lengths, RSSI, and LQI.
+- **Live RSSI Meter**: Watch the background noise and signal spikes in real-time at the bottom of the screen.
 - **LFT / RGT / ACT**: Pauses live RF listening and enables terminal buffer scroll mode (`doScroll`).
 - **ACT**: Resumes live RF scanning.
 - **ESC**: Exits to the main menu.
@@ -106,6 +112,12 @@ The firmware decodes over 39 common fixed and dynamic OOK/ASK protocols via the 
 - **SHOW**: Inspect decoded metadata and raw timings.
 - **SET REPEAT**: Adjust retransmission burst count.
 - **RENAME / DELETE**: Organize saved codes stored in EEPROM.
+
+### In `SETTINGS` Menu:
+- Adjust **FREQ** (Frequency), **MOD** (Modulation), **RX BW** (Receiver Bandwidth), **DRATE** (Data Rate), and **DEV** (Deviation).
+- Use `UP`/`DOWN` to navigate.
+- Use `LEFT`/`RIGHT` or `ACT` to toggle parameter values on the fly.
+- Select `BACK` or press `ESC` to silently apply and save the configuration to EEPROM.
 
 ---
 

@@ -70,7 +70,7 @@ void menuDraw();
   
 public:
   ESPboyMenuGUI(ESPboyInit *myESPboyPointer);
-  uint16_t menuInit(const char** menuLinesF, uint16_t menuLineColorF, uint16_t menuUnselectedLineColorF, uint16_t menuSelectionColorF);
-};
+  uint16_t menuInit(const char** menuLinesF, uint16_t menuLineColorF, uint16_t menuUnselectedLineColorF, uint16_t menuSelectionColorF, bool returnOnArrowKeys = false);
+  };
 
 #endif
