@@ -297,7 +297,7 @@ Serial.println("\nStarting ESPboy Sub1GHz Inspector...");
 EEPROM.begin(2048);
 readEEPROM();
 
-myESPboy.begin("Sub1GHz inspector v2.4");
+myESPboy.begin("Sub1GHz inspector v2");
 
 terminalGUIobj = new ESPboyTerminalGUI(&myESPboy.tft, &myESPboy.mcp);
 menuGUIobj = new ESPboyMenuGUI(&myESPboy);
